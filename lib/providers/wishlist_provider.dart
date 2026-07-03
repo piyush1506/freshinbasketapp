@@ -71,4 +71,11 @@ class WishlistProvider extends ChangeNotifier {
     _productIds.clear();
     notifyListeners();
   }
+
+  void logout() {
+    _authInitialized = false;
+    _items.clear();
+    _productIds.clear();
+    notifyListeners();
+  }
 }

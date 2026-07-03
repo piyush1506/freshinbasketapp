@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/auth_provider.dart';
+import '../providers/wishlist_provider.dart';
+import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'category_screen.dart';
 import 'cart_screen.dart';
@@ -35,6 +38,13 @@ class MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _currentTab = widget.initialTab;
+    ApiService.onUnauthorized = () {
+      if (mounted) {
+        context.read<AuthProvider>().logout();
+        context.read<CartProvider>().logout();
+        context.read<WishlistProvider>().logout();
+      }
+    };
   }
 
   void switchTab(int index) {
@@ -53,41 +63,32 @@ class MainShellState extends State<MainShell> {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentTab,
         onDestinationSelected: switchTab,
-        backgroundColor: const Color(0xFFF7F8F5),
+        backgroundColor: Colors.white,
         indicatorColor: const Color(0xFF164431),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
         destinations: [
           NavigationDestination(
-            icon: Icon(_currentTab == 0 ? Icons.home : Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home, color: Colors.white),
+            icon: Icon(_currentTab == 0 ? Icons.home : Icons.home_outlined, color: _currentTab == 0 ? Colors.white : null),
             label: 'Home',
           ),
           NavigationDestination(
-            icon: Icon(_currentTab == 1 ? Icons.storefront : Icons.storefront_outlined),
-            selectedIcon: const Icon(Icons.storefront, color: Colors.white),
+            icon: Icon(_currentTab == 1 ? Icons.storefront : Icons.storefront_outlined, color: _currentTab == 1 ? Colors.white : null),
             label: 'Shop',
           ),
           NavigationDestination(
             icon: Badge(
               isLabelVisible: itemCount > 0,
               label: Text(itemCount > 99 ? '99+' : '$itemCount'),
-              child: Icon(_currentTab == 2 ? Icons.shopping_cart : Icons.shopping_cart_outlined),
-            ),
-            selectedIcon: Badge(
-              isLabelVisible: itemCount > 0,
-              label: Text(itemCount > 99 ? '99+' : '$itemCount'),
-              child: const Icon(Icons.shopping_cart, color: Colors.white),
+              child: Icon(_currentTab == 2 ? Icons.shopping_cart : Icons.shopping_cart_outlined, color: _currentTab == 2 ? Colors.white : null),
             ),
             label: 'Cart',
           ),
           NavigationDestination(
-            icon: Icon(_currentTab == 3 ? Icons.receipt_long : Icons.receipt_long_outlined),
-            selectedIcon: const Icon(Icons.receipt_long, color: Colors.white),
+            icon: Icon(_currentTab == 3 ? Icons.receipt_long : Icons.receipt_long_outlined, color: _currentTab == 3 ? Colors.white : null),
             label: 'Orders',
           ),
           NavigationDestination(
-            icon: Icon(_currentTab == 4 ? Icons.person : Icons.person_outline),
-            selectedIcon: const Icon(Icons.person, color: Colors.white),
+            icon: Icon(_currentTab == 4 ? Icons.person : Icons.person_outline, color: _currentTab == 4 ? Colors.white : null),
             label: 'Profile',
           ),
         ],

@@ -8,17 +8,18 @@ class AuthService {
 
   static Future<Map<String, dynamic>> login(String email, String password) async {
     final res = await http.post(
-      Uri.parse('$baseUrl/api/auth/login/'),
+      Uri.parse('$baseUrl/api/v1/auth/login/'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'email': email, 'password': password}),
     );
     if (res.statusCode == 200) {
       final data = json.decode(res.body);
       await _storeTokens(data['access'], data['refresh']);
+      
       await _storeUser(User.fromJson(data['user']));
       return data;
     }
-    final body = res.body.isNotEmpty ? json.decode(res.body) : {};
+    final body = _safeDecode(res.body) ?? <String, dynamic>{};
     throw Exception(_extractError(body) ?? 'Login failed');
   }
 
@@ -31,7 +32,7 @@ class AuthService {
     String? address,
   }) async {
     final res = await http.post(
-      Uri.parse('$baseUrl/api/auth/register/'),
+      Uri.parse('$baseUrl/api/v1/auth/register/'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({
         'username': username,
@@ -48,26 +49,26 @@ class AuthService {
       await _storeUser(User.fromJson(data['user']));
       return data;
     }
-    final body = res.body.isNotEmpty ? json.decode(res.body) : {};
+    final body = res.body.isNotEmpty ? json.decode(res.body) : <String, dynamic>{};
     throw Exception(_extractError(body) ?? 'Registration failed');
   }
 
   static Future<Map<String, dynamic>> sendOtp(String phoneNumber) async {
     final res = await http.post(
-      Uri.parse('$baseUrl/api/auth/send-otp/'),
+      Uri.parse('$baseUrl/api/v1/auth/send-otp/'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'phone_number': phoneNumber}),
     );
     if (res.statusCode == 200 || res.statusCode == 201) {
       return json.decode(res.body);
     }
-    final body = res.body.isNotEmpty ? json.decode(res.body) : {};
+    final body = _safeDecode(res.body) ?? <String, dynamic>{};
     throw Exception(_extractError(body) ?? 'Failed to send OTP');
   }
 
   static Future<Map<String, dynamic>> verifyOtp(String phoneNumber, String otpCode) async {
     final res = await http.post(
-      Uri.parse('$baseUrl/api/auth/verify-otp/'),
+      Uri.parse('$baseUrl/api/v1/auth/verify-otp/'),
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'phone_number': phoneNumber, 'otp_code': otpCode}),
     );
@@ -81,7 +82,7 @@ class AuthService {
       }
       return data;
     }
-    final body = res.body.isNotEmpty ? json.decode(res.body) : {};
+    final body = _safeDecode(res.body) ?? <String, dynamic>{};
     throw Exception(_extractError(body) ?? 'Invalid OTP');
   }
 
@@ -91,7 +92,7 @@ class AuthService {
       final refresh = prefs.getString('refresh_token');
       if (refresh != null) {
         await http.post(
-          Uri.parse('$baseUrl/api/auth/logout/'),
+          Uri.parse('$baseUrl/api/v1/auth/logout/'),
           headers: {'Content-Type': 'application/json'},
           body: json.encode({'refresh': refresh}),
         );
@@ -147,6 +148,11 @@ class AuthService {
     await _storeUser(user);
   }
 
+  static dynamic _safeDecode(String body) {
+    if (body.trimLeft().startsWith('<')) return null;
+    try { return json.decode(body); } catch (_) { return null; }
+  }
+
   static String? _extractError(Map<String, dynamic> body) {
     if (body.containsKey('detail')) {
       final detail = body['detail'] as String?;
@@ -172,11 +178,11 @@ class AuthService {
     return messages.isNotEmpty ? messages.join('\n') : null;
   }
 
-  static Future<void> updateProfile(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
     final token = await getAccessToken();
     if (token == null) throw Exception('Not authenticated');
     final res = await http.patch(
-      Uri.parse('$baseUrl/api/users/me/'),
+      Uri.parse('$baseUrl/api/v1/users/me/'),
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $token',
@@ -184,8 +190,25 @@ class AuthService {
       body: json.encode(data),
     );
     if (res.statusCode != 200) {
-      final body = res.body.isNotEmpty ? json.decode(res.body) : {};
-      throw Exception(body['detail'] ?? 'Failed to update profile');
+      final body = _safeDecode(res.body) ?? <String, dynamic>{};
+      throw Exception(_extractError(body) ?? 'Failed to update profile');
     }
+    return json.decode(res.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> fetchProfile() async {
+    final token = await getAccessToken();
+    if (token == null) throw Exception('Not authenticated');
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/v1/users/me/'),
+      headers: {
+        'Authorization': 'Bearer $token',
+      },
+    );
+    if (res.statusCode != 200) {
+      final body = _safeDecode(res.body) ?? <String, dynamic>{};
+      throw Exception(body['detail'] ?? 'Failed to fetch profile');
+    }
+    return json.decode(res.body) as Map<String, dynamic>;
   }
 }

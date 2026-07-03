@@ -33,7 +33,7 @@ class CartProvider extends ChangeNotifier {
   StoreSettings get settings => _settings;
   bool get loading => _loading;
   bool get isLoggedIn => _isLoggedIn;
-  int get itemCount => _items.fold(0, (sum, item) => sum + item.quantity);
+  int get itemCount => _items.length;
 
   double get subtotal =>
       _items.fold(0.0, (sum, item) => sum + item.totalPrice);
@@ -52,45 +52,68 @@ class CartProvider extends ChangeNotifier {
 
   // ─── Add (handles local + backend) ───────────────────────
 
-  void addItem(Product product, {int quantity = 1}) {
-    final index = _items.indexWhere((i) => i.productId == product.id);
+  void addItem(dynamic source, {double? quantity}) {
+    final productId = source is Product ? source.id : source.productId;
+    final subProductId = source is CartItem ? source.subProductId : null;
+    final orderStep = source is Product ? source.orderStep : (source is CartItem ? source.orderStep : 1.0);
+    final minOrderQty = source is Product ? source.minOrderQty : (source is CartItem ? source.minOrderQty : 0.0);
+    final price = source is Product ? source.price : (source is CartItem ? source.price : 0.0);
+    final name = source is Product ? source.name : (source is CartItem ? source.name : '');
+    final image = source is Product ? source.imageUrl : (source is CartItem ? source.image : null);
+    final unit = source is Product ? source.unit : (source is CartItem ? source.unit : null);
+    final taxPercentage = source is Product ? source.taxPercentage : (source is CartItem ? source.taxPercentage : 0.0);
+
+    final key = subProductId != null ? 's_${productId}_$subProductId' : 'p_$productId';
+    final initialQty = quantity ?? (minOrderQty > 0 ? minOrderQty : orderStep);
+    
+    final index = _items.indexWhere((i) => i.cartKey == key);
     if (index >= 0) {
-      _items[index].quantity += quantity;
+      _items[index].quantity += quantity ?? orderStep;
     } else {
       _items.add(CartItem(
-        productId: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.imageUrl,
-        unit: product.unit,
-        quantity: quantity,
+        productId: productId,
+        subProductId: subProductId,
+        name: name,
+        price: price,
+        image: image,
+        unit: unit,
+        quantity: initialQty,
+        taxPercentage: taxPercentage,
+        orderStep: orderStep,
+        minOrderQty: minOrderQty,
       ));
     }
     _persist();
     notifyListeners();
   }
 
-  Future<void> addToBackend(Product product, {int quantity = 1}) async {
+  Future<void> addToBackend(dynamic source, {double? quantity}) async {
     if (!_isLoggedIn) {
-      addItem(product, quantity: quantity);
+      addItem(source, quantity: quantity);
       return;
     }
+    final productId = source is Product ? source.id : source.productId;
+    final orderStep = source is Product ? source.orderStep : (source is CartItem ? source.orderStep : 1.0);
+    final minOrderQty = source is Product ? source.minOrderQty : (source is CartItem ? source.minOrderQty : 0.0);
+    final initialQty = quantity ?? (minOrderQty > 0 ? minOrderQty : orderStep);
+
     try {
-      await ApiService.addToCart(product.id, quantity);
+      await ApiService.addToCart(productId, initialQty);
     } catch (_) {
-      addItem(product, quantity: quantity);
+      addItem(source, quantity: quantity);
       return;
     }
     try {
       await _fetchFromBackend();
     } catch (_) {
-      addItem(product, quantity: quantity);
+      addItem(source, quantity: quantity);
     }
   }
 
   // ─── Update quantity ─────────────────────────────────────
 
-  Future<void> updateQuantity(int productId, int quantity) async {
+  Future<void> updateQuantity(int productId, double quantity, {int? subProductId}) async {
+    final key = subProductId != null ? 's_${productId}_$subProductId' : 'p_$productId';
     if (_isLoggedIn) {
       try {
         if (quantity <= 0) {
@@ -99,21 +122,21 @@ class CartProvider extends ChangeNotifier {
           await ApiService.addToCart(productId, quantity);
         }
       } catch (_) {
-        _updateLocalQuantity(productId, quantity);
+        _updateLocalQuantity(key, quantity);
         return;
       }
       try {
         await _fetchFromBackend();
       } catch (_) {
-        _updateLocalQuantity(productId, quantity);
+        _updateLocalQuantity(key, quantity);
       }
       return;
     }
-    _updateLocalQuantity(productId, quantity);
+    _updateLocalQuantity(key, quantity);
   }
 
-  void _updateLocalQuantity(int productId, int quantity) {
-    final index = _items.indexWhere((i) => i.productId == productId);
+  void _updateLocalQuantity(String key, double quantity) {
+    final index = _items.indexWhere((i) => i.cartKey == key);
     if (index >= 0) {
       if (quantity <= 0) {
         _items.removeAt(index);
@@ -127,26 +150,27 @@ class CartProvider extends ChangeNotifier {
 
   // ─── Remove ──────────────────────────────────────────────
 
-  Future<void> removeFromBackend(int productId) async {
+  Future<void> removeFromBackend(int productId, {int? subProductId}) async {
+    final key = subProductId != null ? 's_${productId}_$subProductId' : 'p_$productId';
     if (_isLoggedIn) {
       try {
         await ApiService.removeFromCart(productId);
       } catch (_) {
-        _removeLocal(productId);
+        _removeLocal(key);
         return;
       }
       try {
         await _fetchFromBackend();
       } catch (_) {
-        _removeLocal(productId);
+        _removeLocal(key);
       }
       return;
     }
-    _removeLocal(productId);
+    _removeLocal(key);
   }
 
-  void _removeLocal(int productId) {
-    _items.removeWhere((i) => i.productId == productId);
+  void _removeLocal(String key) {
+    _items.removeWhere((i) => i.cartKey == key);
     _persist();
     notifyListeners();
   }
@@ -162,6 +186,13 @@ class CartProvider extends ChangeNotifier {
     _items.clear();
     _persist();
     notifyListeners();
+  }
+
+  void logout() {
+    _isLoggedIn = false;
+    _authInitialized = false;
+    _items.clear();
+    loadGuestCart();
   }
 
   // ─── Sync after login ────────────────────────────────────

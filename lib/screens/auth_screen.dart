@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/cart_provider.dart';
+import '../providers/wishlist_provider.dart';
 
 enum AuthStep { phone, otp, name }
 
@@ -64,6 +65,7 @@ class _AuthScreenState extends State<AuthScreen> {
     if (data != null && mounted) {
       context.read<CartProvider>().setLoggedIn(true);
       context.read<CartProvider>().syncAfterLogin();
+      context.read<WishlistProvider>().fetchWishlist();
       
       final bool isNewUser = data['is_new_user'] == true;
       final user = auth.user;
@@ -117,196 +119,290 @@ class _AuthScreenState extends State<AuthScreen> {
           body: SingleChildScrollView(
             child: Column(
               children: [
-                // Top Image Header
+                // Top Gradient Logo Header
                 Container(
-                  height: 240,
+                  height: 280,
                   width: double.infinity,
                   decoration: const BoxDecoration(
-                    image: DecorationImage(
-                      image: NetworkImage('https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=1000'),
-                      fit: BoxFit.cover,
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF0F3224), Color(0xFF1D523C)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(32),
+                      bottomRight: Radius.circular(32),
                     ),
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          const Color(0xFFF7F8F5).withValues(alpha: 0.9),
-                          const Color(0xFFF7F8F5),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
+                  child: Stack(
+                    children: [
+                      // Decorative circles
+                      Positioned(
+                        top: -50,
+                        right: -50,
+                        child: CircleAvatar(
+                          radius: 100,
+                          backgroundColor: Colors.white.withOpacity(0.025),
+                        ),
                       ),
-                    ),
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 24, bottom: 20),
-                    child: const Text(
-                      'HarvestMarket',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF164431),
+                      Positioned(
+                        bottom: -30,
+                        left: -30,
+                        child: CircleAvatar(
+                          radius: 80,
+                          backgroundColor: Colors.white.withOpacity(0.025),
+                        ),
                       ),
-                    ),
+                      // Brand Identity
+                      Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.12),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
+                              ),
+                              child: const Icon(
+                                Icons.shopping_cart_outlined,
+                                size: 48,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'FreshInBasket',
+                              style: TextStyle(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'FARM FRESH DIRECT TO YOUR DOOR',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white.withOpacity(0.6),
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 
-                // Form Section
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _step == AuthStep.phone ? 'Welcome' : _step == AuthStep.otp ? 'Verify OTP' : 'Complete Profile',
-                          style: const TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF111111),
-                          ),
+                // Form Section in Overlapping Card
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _step == AuthStep.phone
-                              ? 'Enter your mobile number to log in or create an account instantly.'
-                              : _step == AuthStep.otp
-                                  ? 'We have sent a 6-digit code to +91 ${_phoneCtrl.text}'
-                                  : 'Just one last step to complete your account!',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Color(0xFF666666),
-                          ),
-                        ),
-                        const SizedBox(height: 32),
-                        
-                        if (_step == AuthStep.phone) ...[
-                          _buildLabel('Mobile Number'),
-                          TextFormField(
-                            controller: _phoneCtrl,
-                            keyboardType: TextInputType.phone,
-                            maxLength: 10,
-                            decoration: InputDecoration(
-                              hintText: '9876543210',
-                              prefixIcon: const Padding(
-                                padding: EdgeInsets.all(14.0),
-                                child: Text('+91', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey)),
-                              ),
-                              hintStyle: const TextStyle(color: Colors.grey),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF164431)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildButton(
-                            text: 'Get OTP',
-                            icon: Icons.arrow_forward,
-                            loading: auth.loading,
-                            onPressed: _handleSendOtp,
-                          ),
-                        ] else if (_step == AuthStep.otp) ...[
-                          _buildLabel('6-Digit OTP'),
-                          TextFormField(
-                            controller: _otpCtrl,
-                            keyboardType: TextInputType.number,
-                            maxLength: 6,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 8.0),
-                            decoration: InputDecoration(
-                              hintText: 'Enter OTP',
-                              hintStyle: const TextStyle(color: Colors.grey, letterSpacing: 0, fontSize: 16),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF164431)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildButton(
-                            text: 'Verify & Proceed',
-                            icon: Icons.check_circle_outline,
-                            loading: auth.loading,
-                            onPressed: _handleVerifyOtp,
-                          ),
-                          const SizedBox(height: 16),
-                          Center(
-                            child: TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _step = AuthStep.phone;
-                                });
-                              },
-                              child: const Text('Change Mobile Number', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                        ] else ...[
-                          _buildLabel('Full Name'),
-                          TextFormField(
-                            controller: _nameCtrl,
-                            keyboardType: TextInputType.name,
-                            textCapitalization: TextCapitalization.words,
-                            decoration: InputDecoration(
-                              hintText: 'Enter your full name',
-                              hintStyle: const TextStyle(color: Colors.grey),
-                              filled: true,
-                              fillColor: Colors.white,
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                borderSide: const BorderSide(color: Color(0xFF164431)),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          _buildButton(
-                            text: 'Start Shopping',
-                            icon: Icons.arrow_forward,
-                            loading: auth.loading,
-                            onPressed: _handleUpdateName,
-                          ),
-                        ],
-                        
-                        if (auth.error != null) ...[
-                          const SizedBox(height: 16),
-                          Text(auth.error!, style: const TextStyle(color: Colors.red, fontSize: 14)),
-                        ],
-
-                        const SizedBox(height: 32),
                       ],
+                    ),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _step == AuthStep.phone
+                                ? 'Welcome Back'
+                                : _step == AuthStep.otp
+                                    ? 'Verify OTP'
+                                    : 'Complete Profile',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF222222),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            _step == AuthStep.phone
+                                ? 'Enter your mobile number to log in or register instantly.'
+                                : _step == AuthStep.otp
+                                    ? 'We have sent a 6-digit verification code to +91 ${_phoneCtrl.text}'
+                                    : 'Just one last step to complete your profile!',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF777777),
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          
+                          if (_step == AuthStep.phone) ...[
+                            _buildLabel('Mobile Number'),
+                            TextFormField(
+                              key: const ValueKey('phone_field'),
+                              controller: _phoneCtrl,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 10,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                              decoration: InputDecoration(
+                                hintText: '9876543210',
+                                prefixIcon: const Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                                  child: Text('+91 ', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Color(0xFF555555))),
+                                ),
+                                prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                                hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
+                                filled: true,
+                                fillColor: const Color(0xFFF7F8F6),
+                                counterText: '',
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFF164431), width: 1.5),
+                                ),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Phone number is required';
+                                if (v.trim().length != 10) return 'Must be exactly 10 digits';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            _buildButton(
+                              text: 'Get OTP',
+                              icon: Icons.arrow_forward_rounded,
+                              loading: auth.loading,
+                              onPressed: _handleSendOtp,
+                            ),
+                          ] else if (_step == AuthStep.otp) ...[
+                            _buildLabel('6-Digit Verification Code'),
+                            TextFormField(
+                              key: const ValueKey('otp_field'),
+                              controller: _otpCtrl,
+                              keyboardType: TextInputType.number,
+                              maxLength: 6,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 8.0, color: Color(0xFF164431)),
+                              decoration: InputDecoration(
+                                hintText: '000000',
+                                counterText: '',
+                                hintStyle: const TextStyle(color: Colors.grey, letterSpacing: 0, fontSize: 16, fontWeight: FontWeight.normal),
+                                filled: true,
+                                fillColor: const Color(0xFFF7F8F6),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFF164431), width: 1.5),
+                                ),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'OTP is required';
+                                if (v.trim().length != 6) return 'Must be 6 digits';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            _buildButton(
+                              text: 'Verify & Proceed',
+                              icon: Icons.check_circle_outline_rounded,
+                              loading: auth.loading,
+                              onPressed: _handleVerifyOtp,
+                            ),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _step = AuthStep.phone;
+                                    _otpCtrl.clear();
+                                  });
+                                },
+                                icon: const Icon(Icons.edit_outlined, size: 16, color: Color(0xFF164431)),
+                                label: const Text('Change Number', style: TextStyle(color: Color(0xFF164431), fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ] else ...[
+                            _buildLabel('Your Full Name'),
+                            TextFormField(
+                              key: const ValueKey('name_field'),
+                              controller: _nameCtrl,
+                              keyboardType: TextInputType.text,
+                              textCapitalization: TextCapitalization.words,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                              decoration: InputDecoration(
+                                hintText: 'Enter your full name',
+                                hintStyle: const TextStyle(color: Colors.grey, fontWeight: FontWeight.normal),
+                                filled: true,
+                                fillColor: const Color(0xFFF7F8F6),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide.none,
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: Color(0xFF164431), width: 1.5),
+                                ),
+                              ),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) return 'Name is required';
+                                if (v.trim().length < 3) return 'Must be at least 3 characters';
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            _buildButton(
+                              text: 'Start Shopping',
+                              icon: Icons.shopping_cart_outlined,
+                              loading: auth.loading,
+                              onPressed: _handleUpdateName,
+                            ),
+                          ],
+                          
+                          if (auth.error != null) ...[
+                            const SizedBox(height: 20),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFDE8E8),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFBD5D5)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.error_outline_rounded, color: Color(0xFFE53E3E), size: 20),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      auth.error!,
+                                      style: const TextStyle(color: Color(0xFFE53E3E), fontSize: 13, fontWeight: FontWeight.w500),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -324,9 +420,9 @@ class _AuthScreenState extends State<AuthScreen> {
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 14,
-          color: Color(0xFF333333),
-          fontWeight: FontWeight.w500,
+          fontSize: 13,
+          color: Color(0xFF555555),
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -347,7 +443,7 @@ class _AuthScreenState extends State<AuthScreen> {
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           elevation: 0,
         ),
@@ -355,17 +451,17 @@ class _AuthScreenState extends State<AuthScreen> {
             ? const SizedBox(
                 height: 20,
                 width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     text,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.2),
                   ),
                   const SizedBox(width: 8),
-                  Icon(icon, size: 20),
+                  Icon(icon, size: 18),
                 ],
               ),
       ),

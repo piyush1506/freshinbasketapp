@@ -38,13 +38,49 @@ class _ContactScreenState extends State<ContactScreen> {
   }
 
   Future<void> _submit() async {
-    if (_messageCtrl.text.trim().isEmpty) return;
+    final name = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final message = _messageCtrl.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your name.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid email address.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (message.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your message.'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     setState(() => _sending = true);
     try {
       await ApiService.submitContact(
-        name: _nameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
-        message: _messageCtrl.text.trim(),
+        name: name,
+        email: email,
+        message: message,
       );
       _messageCtrl.clear();
       if (mounted) {

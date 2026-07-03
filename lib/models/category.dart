@@ -7,6 +7,7 @@ class Category {
   final String? description;
   final String? imageUrl;
   final List<Product> products;
+  final String? sectionName;
 
   Category({
     required this.id,
@@ -15,6 +16,7 @@ class Category {
     this.description,
     this.imageUrl,
     this.products = const [],
+    this.sectionName,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,7 @@ class Category {
               ?.map((p) => Product.fromJson(p))
               .toList() ??
           [],
+      sectionName: json['section_name'],
     );
   }
 }

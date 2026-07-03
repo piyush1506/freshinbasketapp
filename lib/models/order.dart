@@ -1,4 +1,5 @@
 import 'cart_item.dart';
+import 'review.dart';
 
 class Order {
   final int id;
@@ -15,6 +16,7 @@ class Order {
   final String? deliveryLatitude;
   final String? deliveryLongitude;
   final List<CartItem> items;
+  final Review? review;
 
   Order({
     required this.id,
@@ -31,6 +33,7 @@ class Order {
     this.deliveryLatitude,
     this.deliveryLongitude,
     this.items = const [],
+    this.review,
   });
 
   String get statusDisplay {
@@ -70,6 +73,7 @@ class Order {
               ?.map((i) => CartItem.fromJson(i))
               .toList() ??
           [],
+      review: json['review'] != null ? Review.fromJson(json['review']) : null,
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/wishlist_provider.dart';
+import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
 class WishlistScreen extends StatefulWidget {
@@ -16,13 +17,50 @@ class _WishlistScreenState extends State<WishlistScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<WishlistProvider>().fetchWishlist();
+      if (context.read<AuthProvider>().isLoggedIn) {
+        context.read<WishlistProvider>().fetchWishlist();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final wishlist = context.watch<WishlistProvider>();
+    final auth = context.watch<AuthProvider>();
+
+    if (!auth.isLoggedIn) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF7F8F5),
+        appBar: AppBar(
+          title: const Text('My Wishlist',
+              style: TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF222222))),
+          backgroundColor: const Color(0xFFF7F8F5),
+          elevation: 0,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.favorite_outline, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('Please log in to view your wishlist',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF444444), fontWeight: FontWeight.w500)),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.pushNamed(context, '/auth'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF164431),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('Log In'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F8F5),

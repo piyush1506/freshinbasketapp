@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../services/auth_service.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
@@ -34,6 +35,8 @@ class AuthProvider extends ChangeNotifier {
       _user = User.fromJson(data['user']);
       _loading = false;
       notifyListeners();
+      // Register FCM token so backend can send push notifications to this device
+      NotificationService.instance.getAndRegisterToken();
       return true;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -66,6 +69,8 @@ class AuthProvider extends ChangeNotifier {
       _user = User.fromJson(data['user']);
       _loading = false;
       notifyListeners();
+      // Register FCM token so backend can send push notifications to this device
+      NotificationService.instance.getAndRegisterToken();
       return true;
     } catch (e) {
       _error = e.toString().replaceFirst('Exception: ', '');
@@ -100,6 +105,8 @@ class AuthProvider extends ChangeNotifier {
       final data = await AuthService.verifyOtp(phoneNumber, otpCode);
       if (data['user'] != null) {
         _user = User.fromJson(data['user']);
+        // Register FCM token so backend can send push notifications to this device
+        NotificationService.instance.getAndRegisterToken();
       }
       _loading = false;
       notifyListeners();
@@ -120,16 +127,19 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> updateProfile(Map<String, dynamic> data) async {
     try {
-      await AuthService.updateProfile(data);
-      _user = User(
-        id: _user!.id,
-        username: data['username'] ?? _user!.username,
-        email: data['email'] ?? _user!.email,
-        role: _user!.role,
-        phoneNumber: data['phone_number'] ?? _user!.phoneNumber,
-        address: data['address'] ?? _user!.address,
-        avatar: data['avatar'] ?? _user!.avatar,
-      );
+      final responseData = await AuthService.updateProfile(data);
+      _user = User.fromJson(responseData);
+      await AuthService.updateLocalUser(_user!);
+      notifyListeners();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<void> fetchProfile() async {
+    try {
+      final responseData = await AuthService.fetchProfile();
+      _user = User.fromJson(responseData);
       await AuthService.updateLocalUser(_user!);
       notifyListeners();
     } catch (e) {

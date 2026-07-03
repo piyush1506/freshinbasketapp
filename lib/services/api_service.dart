@@ -2,18 +2,35 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/product.dart';
 import '../models/category.dart';
-import '../models/slide.dart';
+import 'package:freshinbasket/models/slide.dart';
 import '../models/cart_item.dart';
 import '../models/order.dart';
 import '../models/store_settings.dart';
 import '../models/review.dart';
 import '../models/wishlist_item.dart';
+import '../models/delivery_slot.dart';
+import '../models/contact_query.dart';
 
 class ApiService {
   static const String baseUrl = 'http://192.168.29.50:8000';
+
+  /// Sanitizes an exception message so internal network details (IPs, URLs)
+  /// are never exposed to the user.
+  static String _sanitize(Object e) {
+    if (e is SocketException || e is http.ClientException) {
+      return 'Unable to connect to server. Please check your internet connection and try again.';
+    }
+    final msg = e.toString().replaceFirst('Exception: ', '');
+    // Strip any message that leaks a raw URL / IP address
+    if (msg.contains(baseUrl) || RegExp(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}').hasMatch(msg)) {
+      return 'Unable to connect to server. Please check your internet connection and try again.';
+    }
+    return msg;
+  }
   static VoidCallback? onUnauthorized;
 
   static Future<Map<String, String>> _headers({bool multipart = false}) async {
@@ -25,48 +42,75 @@ class ApiService {
     };
   }
 
+  static dynamic _safeDecode(String body) {
+    if (body.trimLeft().startsWith('<')) {
+      return null;
+    }
+    try {
+      return json.decode(body);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<dynamic> _request(
     Future<http.Response> Function() sendRequest,
   ) async {
-    var response = await sendRequest();
-    if (response.statusCode == 401) {
-      final refreshed = await _refreshToken();
-      if (refreshed) {
-        response = await sendRequest();
+    try {
+      var response = await sendRequest();
+      if (response.statusCode == 401) {
+        final refreshed = await _refreshToken();
+        if (refreshed) {
+          response = await sendRequest();
+        }
       }
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return null;
+        final decoded = _safeDecode(response.body);
+        if (decoded != null) return decoded;
+        throw Exception('Server returned unexpected response. Please try again.');
+      }
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        onUnauthorized?.call();
+      }
+      final body = _safeDecode(response.body) ?? <String, dynamic>{};
+      throw Exception(_extractError(body) ?? 'Request failed (${response.statusCode})');
+    } on SocketException {
+      throw Exception('Unable to connect to server. Please check your internet connection and try again.');
+    } on http.ClientException {
+      throw Exception('Unable to connect to server. Please check your internet connection and try again.');
     }
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) return null;
-      return json.decode(response.body);
-    }
-    if (response.statusCode == 401 || response.statusCode == 403) {
-       onUnauthorized?.call();
-    }
-    final body = response.body.isNotEmpty ? json.decode(response.body) : {};
-    throw Exception(_extractError(body) ?? 'Request failed');
   }
 
   static Future<dynamic> _requestFromStream(
     Future<http.StreamedResponse> Function() sendRequest,
   ) async {
-    var streamed = await sendRequest();
-    var response = await http.Response.fromStream(streamed);
-    if (response.statusCode == 401) {
-      final refreshed = await _refreshToken();
-      if (refreshed) {
-        streamed = await sendRequest();
-        response = await http.Response.fromStream(streamed);
+    try {
+      var streamed = await sendRequest();
+      var response = await http.Response.fromStream(streamed);
+      if (response.statusCode == 401) {
+        final refreshed = await _refreshToken();
+        if (refreshed) {
+          streamed = await sendRequest();
+          response = await http.Response.fromStream(streamed);
+        }
       }
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (response.body.isEmpty) return null;
+        final decoded = _safeDecode(response.body);
+        if (decoded != null) return decoded;
+        throw Exception('Server returned unexpected response. Please try again.');
+      }
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        onUnauthorized?.call();
+      }
+      final body = _safeDecode(response.body) ?? <String, dynamic>{};
+      throw Exception(_extractError(body) ?? 'Request failed (${response.statusCode})');
+    } on SocketException {
+      throw Exception('Unable to connect to server. Please check your internet connection and try again.');
+    } on http.ClientException {
+      throw Exception('Unable to connect to server. Please check your internet connection and try again.');
     }
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      if (response.body.isEmpty) return null;
-      return json.decode(response.body);
-    }
-    if (response.statusCode == 401 || response.statusCode == 403) {
-       onUnauthorized?.call();
-    }
-    final body = response.body.isNotEmpty ? json.decode(response.body) : {};
-    throw Exception(_extractError(body) ?? 'Request failed');
   }
 
   static String? _extractError(Map<String, dynamic> body) {
@@ -88,6 +132,12 @@ class ApiService {
     final messages = <String>[];
     for (final entry in body.entries) {
       final v = entry.value;
+      
+      // Handle badly serialized Python ErrorDetail strings
+      if (v.toString().contains('token_not_valid') || v.toString().contains('Token is expired') || v.toString().contains('ErrorDetail')) {
+        return 'Your session has expired. Please log in again.';
+      }
+
       if (v is List && v.isNotEmpty) {
         messages.add('${entry.key}: ${v.join(', ')}');
       } else if (v is String) {
@@ -106,7 +156,7 @@ class ApiService {
         return false;
       }
       final res = await http.post(
-        Uri.parse('$baseUrl/api/auth/refresh/'),
+        Uri.parse('$baseUrl/api/v1/auth/refresh/'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'refresh': refresh}),
       );
@@ -138,13 +188,13 @@ class ApiService {
 
   static Future<Map<String, dynamic>> fetchHome() async {
     return await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/home/'),
+      Uri.parse('$baseUrl/api/v1/home/'),
       headers: await _headers(),
     ));
   }
 
   static Future<List<Product>> fetchProducts({String? category}) async {
-    final uri = Uri.parse('$baseUrl/api/products/').replace(
+    final uri = Uri.parse('$baseUrl/api/v1/products/').replace(
       queryParameters: category != null ? {'category': category} : null,
     );
     final data = await _request(() async => http.get(uri, headers: await _headers()));
@@ -153,23 +203,36 @@ class ApiService {
 
   static Future<Product> fetchProduct(int id) async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/products/$id/'),
+      Uri.parse('$baseUrl/api/v1/products/$id/'),
       headers: await _headers(),
     ));
     return Product.fromJson(data);
   }
 
-  static Future<List<Product>> searchProducts(String query) async {
+  static Future<List<Product>> searchProducts(String query, {int? limit}) async {
+    final uri = Uri.parse('$baseUrl/api/v1/products/search/').replace(
+      queryParameters: {
+        'q': query,
+        if (limit != null) 'limit': limit.toString(),
+      },
+    );
+    final data = await _request(() async => http.get(uri, headers: await _headers()));
+    final list = data is List ? data : (data['results'] as List? ?? []);
+    return (list).map((p) => Product.fromJson(p)).toList();
+  }
+
+  static Future<List<Product>> searchSuggestions(String query) async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/products/search/?q=$query'),
+      Uri.parse('$baseUrl/api/v1/products/search/?q=${Uri.encodeQueryComponent(query)}&suggest=1'),
       headers: await _headers(),
     ));
-    return (data as List).map((p) => Product.fromJson(p)).toList();
+    final list = data is List ? data : (data['results'] as List? ?? []);
+    return (list).map((p) => Product.fromJson(p)).toList();
   }
 
   static Future<List<Category>> fetchCategories() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/categories/'),
+      Uri.parse('$baseUrl/api/v1/categories/'),
       headers: await _headers(),
     ));
     return (data as List).map((c) => Category.fromJson(c)).toList();
@@ -186,7 +249,7 @@ class ApiService {
 
   static Future<StoreSettings> fetchStoreSettings() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/store-info/'),
+      Uri.parse('$baseUrl/api/v1/store-info/'),
       headers: await _headers(),
     ));
     return StoreSettings.fromJson(data);
@@ -194,15 +257,15 @@ class ApiService {
 
   static Future<List<CartItem>> fetchCart() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/cart/'),
+      Uri.parse('$baseUrl/api/v1/cart/'),
       headers: await _headers(),
     ));
     return (data['items'] as List?)?.map((i) => CartItem.fromJson(i)).toList() ?? [];
   }
 
-  static Future<void> addToCart(int productId, int quantity) async {
+  static Future<void> addToCart(int productId, double quantity) async {
     await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/cart/add_item/'),
+      Uri.parse('$baseUrl/api/v1/cart/add_item/'),
       headers: await _headers(),
       body: json.encode({'product_id': productId, 'quantity': quantity}),
     ));
@@ -210,7 +273,7 @@ class ApiService {
 
   static Future<void> removeFromCart(int productId) async {
     await _request(() async => http.delete(
-      Uri.parse('$baseUrl/api/cart/remove_item/'),
+      Uri.parse('$baseUrl/api/v1/cart/remove_item/'),
       headers: await _headers(),
       body: json.encode({'product_id': productId}),
     ));
@@ -218,14 +281,14 @@ class ApiService {
 
   static Future<void> clearCart() async {
     await _request(() async => http.delete(
-      Uri.parse('$baseUrl/api/cart/clear/'),
+      Uri.parse('$baseUrl/api/v1/cart/clear/'),
       headers: await _headers(),
     ));
   }
 
   static Future<void> mergeCart(List<Map<String, dynamic>> items) async {
     await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/cart/merge/'),
+      Uri.parse('$baseUrl/api/v1/cart/merge/'),
       headers: await _headers(),
       body: json.encode({'items': items}),
     ));
@@ -233,7 +296,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> createRazorpayOrder() async {
     return await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/payment/create-order/'),
+      Uri.parse('$baseUrl/api/v1/payment/create-order/'),
       headers: await _headers(),
     ));
   }
@@ -247,7 +310,7 @@ class ApiService {
     String? deliveryLongitude,
   }) async {
     return await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/payment/verify/'),
+      Uri.parse('$baseUrl/api/v1/payment/verify/'),
       headers: await _headers(),
       body: json.encode({
         'razorpay_order_id': razorpayOrderId,
@@ -266,7 +329,7 @@ class ApiService {
     String? deliveryLongitude,
   }) async {
     return await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/payment/cod/'),
+      Uri.parse('$baseUrl/api/v1/payment/cod/'),
       headers: await _headers(),
       body: json.encode({
         'delivery_address': deliveryAddress,
@@ -278,15 +341,59 @@ class ApiService {
 
   static Future<List<Order>> fetchOrders() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/orders/'),
+      Uri.parse('$baseUrl/api/v1/orders/'),
       headers: await _headers(),
     ));
     return (data as List).map((o) => Order.fromJson(o)).toList();
   }
 
+  static Future<void> cancelOrder(int orderId) async {
+    await _request(() async => http.post(
+      Uri.parse('$baseUrl/api/v1/orders/$orderId/cancel/'),
+      headers: await _headers(),
+    ));
+  }
+
+  static Future<void> updateOrderAddress({
+    required int orderId,
+    required String deliveryAddress,
+    String? deliveryLatitude,
+    String? deliveryLongitude,
+  }) async {
+    await _request(() async => http.patch(
+      Uri.parse('$baseUrl/api/v1/orders/$orderId/'),
+      headers: await _headers(),
+      body: json.encode({
+        'delivery_address': deliveryAddress,
+        if (deliveryLatitude != null) 'delivery_latitude': deliveryLatitude,
+        if (deliveryLongitude != null) 'delivery_longitude': deliveryLongitude,
+      }),
+    ));
+  }
+
+  static Future<List<DeliverySlot>> fetchDeliverySlots() async {
+    final data = await _request(() async => http.get(
+      Uri.parse('$baseUrl/api/v1/delivery-slots/'),
+      headers: await _headers(),
+    ));
+    return (data as List).map((s) => DeliverySlot.fromJson(s)).toList();
+  }
+
+  static Future<DeliverySlot?> fetchCurrentDeliverySlot() async {
+    try {
+      final data = await _request(() async => http.get(
+        Uri.parse('$baseUrl/api/v1/delivery-slots/current/'),
+        headers: await _headers(),
+      ));
+      return DeliverySlot.fromJson(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<void> updateProfile(Map<String, dynamic> data) async {
     await _request(() async => http.patch(
-      Uri.parse('$baseUrl/api/users/me/'),
+      Uri.parse('$baseUrl/api/v1/users/me/'),
       headers: await _headers(),
       body: json.encode(data),
     ));
@@ -294,9 +401,14 @@ class ApiService {
 
   static Future<List<dynamic>> fetchContactQueries() async {
     return await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/contact/'),
+      Uri.parse('$baseUrl/api/v1/contact/'),
       headers: await _headers(),
     )) as List;
+  }
+
+  static Future<List<ContactQuery>> fetchContactQueriesModel() async {
+    final data = await fetchContactQueries();
+    return data.map((q) => ContactQuery.fromJson(q)).toList();
   }
 
   static Future<void> submitContact({
@@ -305,7 +417,7 @@ class ApiService {
     required String message,
   }) async {
     await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/contact/'),
+      Uri.parse('$baseUrl/api/v1/contact/'),
       headers: await _headers(),
       body: json.encode({'name': name, 'email': email, 'message': message}),
     ));
@@ -315,7 +427,7 @@ class ApiService {
 
   static Future<List<WishlistItem>> fetchWishlist() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/wishlist/'),
+      Uri.parse('$baseUrl/api/v1/wishlist/'),
       headers: await _headers(),
     ));
     return (data as List).map((i) => WishlistItem.fromJson(i)).toList();
@@ -323,7 +435,7 @@ class ApiService {
 
   static Future<void> addToWishlist(int productId) async {
     await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/wishlist/'),
+      Uri.parse('$baseUrl/api/v1/wishlist/'),
       headers: await _headers(),
       body: json.encode({'product': productId}),
     ));
@@ -331,7 +443,7 @@ class ApiService {
 
   static Future<void> removeFromWishlist(int productId) async {
     await _request(() async => http.delete(
-      Uri.parse('$baseUrl/api/wishlist/remove/'),
+      Uri.parse('$baseUrl/api/v1/wishlist/remove/'),
       headers: await _headers(),
       body: json.encode({'product_id': productId}),
     ));
@@ -339,7 +451,7 @@ class ApiService {
 
   static Future<List<int>> fetchWishlistIds() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/wishlist/ids/'),
+      Uri.parse('$baseUrl/api/v1/wishlist/ids/'),
       headers: await _headers(),
     ));
     return (data as List).cast<int>();
@@ -349,7 +461,7 @@ class ApiService {
 
   static Future<List<Review>> fetchReviews() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/reviews/'),
+      Uri.parse('$baseUrl/api/v1/reviews/'),
       headers: await _headers(),
     ));
     return (data as List).map((r) => Review.fromJson(r)).toList();
@@ -361,7 +473,7 @@ class ApiService {
     String? comment,
   }) async {
     final data = await _request(() async => http.post(
-      Uri.parse('$baseUrl/api/reviews/'),
+      Uri.parse('$baseUrl/api/v1/reviews/'),
       headers: await _headers(),
       body: json.encode({
         'order': orderId,
@@ -379,10 +491,25 @@ class ApiService {
     final data = await _requestFromStream(() async {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/api/upload/'),
+        Uri.parse('$baseUrl/api/v1/upload/'),
       );
       request.headers.addAll(headers);
-      request.files.add(await http.MultipartFile.fromPath('image', file.path));
+      
+      final ext = file.path.split('.').last.toLowerCase();
+      String mimeType = 'image/jpeg';
+      if (ext == 'png') {
+        mimeType = 'image/png';
+      } else if (ext == 'webp') {
+        mimeType = 'image/webp';
+      } else if (ext == 'gif') {
+        mimeType = 'image/gif';
+      }
+      
+      request.files.add(await http.MultipartFile.fromPath(
+        'image',
+        file.path,
+        contentType: MediaType.parse(mimeType),
+      ));
       return request.send();
     });
     return data['secure_url'] as String;
@@ -393,10 +520,25 @@ class ApiService {
     final data = await _requestFromStream(() async {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/api/users/avatar/'),
+        Uri.parse('$baseUrl/api/v1/users/avatar/'),
       );
       request.headers.addAll(headers);
-      request.files.add(await http.MultipartFile.fromPath('avatar', file.path));
+      
+      final ext = file.path.split('.').last.toLowerCase();
+      String mimeType = 'image/jpeg';
+      if (ext == 'png') {
+        mimeType = 'image/png';
+      } else if (ext == 'webp') {
+        mimeType = 'image/webp';
+      } else if (ext == 'gif') {
+        mimeType = 'image/gif';
+      }
+      
+      request.files.add(await http.MultipartFile.fromPath(
+        'avatar',
+        file.path,
+        contentType: MediaType.parse(mimeType),
+      ));
       return request.send();
     });
     return data['avatar'] as String;
@@ -406,9 +548,19 @@ class ApiService {
 
   static Future<List<Slide>> fetchSlides() async {
     final data = await _request(() async => http.get(
-      Uri.parse('$baseUrl/api/slides/'),
+      Uri.parse('$baseUrl/api/v1/slides/'),
       headers: await _headers(),
     ));
     return (data as List).map((s) => Slide.fromJson(s)).toList();
+  }
+
+  // ─── FCM Token Registration ──────────────────────────────────────────────
+
+  static Future<void> registerFCMToken(String token) async {
+    await _request(() async => http.post(
+      Uri.parse('$baseUrl/api/v1/notifications/register-token/'),
+      headers: await _headers(),
+      body: json.encode({'token': token}),
+    ));
   }
 }

@@ -6,6 +6,8 @@ class Slide {
   final String? link;
   final int order;
   final bool isActive;
+  final String? textColor;
+  final String? sectionName;
 
   Slide({
     required this.id,
@@ -15,6 +17,8 @@ class Slide {
     this.link,
     this.order = 0,
     this.isActive = true,
+    this.textColor,
+    this.sectionName,
   });
 
   factory Slide.fromJson(Map<String, dynamic> json) {
@@ -26,6 +30,8 @@ class Slide {
       link: json['link'],
       order: json['order'] ?? 0,
       isActive: json['is_active'] ?? true,
+      textColor: json['text_color'],
+      sectionName: json['section_name'],
     );
   }
 }

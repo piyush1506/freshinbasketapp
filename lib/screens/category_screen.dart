@@ -23,18 +23,21 @@ class CategoryScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            final error = snapshot.error.toString();
-            if (error.contains('credentials') || error.contains('log in') || error.contains('session')) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (Navigator.canPop(context)) {
-                  Navigator.pushReplacementNamed(context, '/auth');
-                } else {
-                   Navigator.pushReplacementNamed(context, '/auth');
-                }
-              });
-              return const Center(child: CircularProgressIndicator());
-            }
-            return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.wifi_off_rounded, size: 56, color: Color(0xFF999999)),
+                    const SizedBox(height: 16),
+                    const Text('Could not load categories', style: TextStyle(fontSize: 16, color: Color(0xFF444444), fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 8),
+                    Text('${snapshot.error}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: Color(0xFF888888))),
+                  ],
+                ),
+              ),
+            );
           }
           final categories = snapshot.data ?? [];
           if (categories.isEmpty) {

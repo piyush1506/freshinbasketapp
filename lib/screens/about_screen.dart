@@ -20,7 +20,7 @@ class AboutScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.shopping_basket,
+                  Icon(Icons.shopping_cart,
                       size: 60, color: Color(0xFF164431)),
                   SizedBox(height: 12),
                   Text('GreenMart',

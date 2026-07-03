@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
-import '../models/slide.dart';
+import 'package:freshinbasket/models/slide.dart';
 import '../models/category.dart';
 import '../services/api_service.dart';
 import '../providers/cart_provider.dart';
@@ -20,19 +20,37 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<Map<String, dynamic>> _homeFuture;
   final _pageCtrl = PageController(viewportFraction: 1);
+  final ScrollController _scrollCtrl = ScrollController();
   int _currentSlide = 0;
   Timer? _slideTimer;
+  String _activeSection = 'fresh';
+  bool _isScrolled = false;
+
   @override
   void initState() {
     super.initState();
     _homeFuture = ApiService.fetchHome();
     context.read<CartProvider>().fetchStoreSettings();
+    _scrollCtrl.addListener(() {
+      if (_scrollCtrl.hasClients) {
+        if (_scrollCtrl.offset > 110 && !_isScrolled) {
+          setState(() {
+            _isScrolled = true;
+          });
+        } else if (_scrollCtrl.offset <= 110 && _isScrolled) {
+          setState(() {
+            _isScrolled = false;
+          });
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
     _pageCtrl.dispose();
     _slideTimer?.cancel();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -47,30 +65,113 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _loadHomeData() {
+    setState(() {
+      _homeFuture = ApiService.fetchHome();
+    });
+  }
+
+  Widget _buildSectionSwitcher() {
+    return Container(
+      height: 40,
+      alignment: Alignment.centerLeft,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        shrinkWrap: true,
+        physics: const BouncingScrollPhysics(),
+        children: [
+          // Fresh Store Tab (Zepto style)
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _activeSection = 'fresh';
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _activeSection == 'fresh' ? Colors.white : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _activeSection == 'fresh' ? const Color(0xFF2470F1) : Colors.transparent,
+                  width: 1.5,
+                ),
+                boxShadow: _activeSection == 'fresh'
+                    ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))]
+                    : [],
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('🥬 ', style: TextStyle(fontSize: 13)),
+                    Text(
+                      'Fresh Store',
+                      style: TextStyle(
+                        color: _activeSection == 'fresh' ? const Color(0xFF2470F1) : const Color(0xFF555555),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Organic Store Tab (Zepto style)
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _activeSection = 'organic';
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: _activeSection == 'organic' ? Colors.white : const Color(0xFFF5F5F5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _activeSection == 'organic' ? const Color(0xFF2470F1) : Colors.transparent,
+                  width: 1.5,
+                ),
+                boxShadow: _activeSection == 'organic'
+                    ? [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4, offset: const Offset(0, 2))]
+                    : [],
+              ),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('🌿 ', style: TextStyle(fontSize: 13)),
+                    Text(
+                      'Organic Store',
+                      style: TextStyle(
+                        color: _activeSection == 'organic' ? const Color(0xFF2470F1) : const Color(0xFF555555),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8F5),
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Column(
-                children: [
-                  _buildHeader(),
-                  const SizedBox(height: 20),
-                  _buildSearchBar(),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _buildContent(),
-            ),
-          ],
-        ),
+        child: _buildContent(),
       ),
-
     );
   }
 
@@ -82,18 +183,40 @@ class _HomeScreenState extends State<HomeScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          final error = snapshot.error.toString();
-          if (error.contains('credentials') ||
-              error.contains('log in') ||
-              error.contains('session')) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted) Navigator.pushReplacementNamed(context, '/auth');
-            });
-            return const Center(child: CircularProgressIndicator());
-          }
+          final rawError = snapshot.error.toString().replaceFirst('Exception: ', '');
+          final bool isNetworkError = rawError.contains('Unable to connect') ||
+              rawError.contains('SocketException') ||
+              rawError.contains('ClientException') ||
+              RegExp(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}').hasMatch(rawError) ||
+              rawError.contains('http://') ||
+              rawError.contains('https://');
+          final String displayMessage = isNetworkError
+              ? 'Unable to connect to server. Please check your internet connection.'
+              : rawError;
+
           return Center(
-              child: Text('Error: ${snapshot.error}',
-                  style: const TextStyle(color: Colors.red)));
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.wifi_off_rounded, size: 56, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  Text(
+                    displayMessage,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.red, fontSize: 15),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _loadHomeData,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
         }
         final data = snapshot.data!;
         final slides = (data['slides'] as List?)
@@ -105,39 +228,113 @@ class _HomeScreenState extends State<HomeScreen> {
                 .toList() ??
             [];
 
-        return CustomScrollView(
-          slivers: [
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: slides.isNotEmpty
-                    ? _buildSlider(slides)
-                    : _buildSeasonalBanner(),
-              ),
+        // Filter slides based on active section
+        final filteredSlides = slides.where((s) {
+          if (_activeSection == 'organic') {
+            return s.sectionName?.toLowerCase().contains('organic') ?? false;
+          } else {
+            return true;
+          }
+        }).toList();
+
+        // Filter categories & nested products based on active section
+        List<Category> filteredCategories = [];
+        if (_activeSection == 'organic') {
+          filteredCategories = categories
+              .where((c) => c.sectionName?.toLowerCase().contains('organic') ?? false)
+              .map((c) {
+                final organicProducts = c.products.where((p) => p.sectionSlug == 'organic' || p.sectionSlug == 'organic-store').toList();
+                return Category(
+                  id: c.id,
+                  name: c.name,
+                  slug: c.slug,
+                  description: c.description,
+                  imageUrl: c.imageUrl,
+                  products: organicProducts,
+                  sectionName: c.sectionName,
+                );
+              })
+              .where((c) => c.products.isNotEmpty)
+              .toList();
+        } else {
+          filteredCategories = categories;
+        }
+
+        return Stack(
+          children: [
+            CustomScrollView(
+              controller: _scrollCtrl,
+              key: ValueKey(_activeSection),
+              slivers: [
+                // Sliver 1: Company Name Header & Section Tabs Switcher (Scrolls away / collapses)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    child: Column(
+                      children: [
+                        _buildHeader(),
+                        const SizedBox(height: 16),
+                        _buildSectionSwitcher(),
+                        const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Sliver 2: Search Bar and Category list row (scrolls with view normally)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      children: [
+                        _buildSearchBar(),
+                        const SizedBox(height: 10),
+                        _buildCategories(filteredCategories),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 16)),
+
+                // Sliver 3: Hero slider
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: filteredSlides.isNotEmpty
+                        ? _buildSlider(filteredSlides)
+                        : _buildSeasonalBanner(),
+                  ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+
+                // Sliver 4: Products sections
+                ...filteredCategories.map((cat) => SliverToBoxAdapter(child: _buildCategorySection(cat))),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              ],
             ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _buildSectionHeader('Categories', 'View all', () {
-                  MainShell.switchTab(context, 1);
-                }),
+
+            // Pinned SearchBar + Categories Overlay (visible only when scrolled down)
+            if (_isScrolled)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildSearchBar(),
+                      const SizedBox(height: 10),
+                      _buildCategories(filteredCategories),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            SliverToBoxAdapter(child: _buildCategories(categories)),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-            ...categories.map((cat) => SliverToBoxAdapter(child: _buildCategorySection(cat))),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: _buildSectionHeader("What's New", '', null),
-              ),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            SliverToBoxAdapter(child: _buildWhatsNew()),
-            const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         );
       },
@@ -157,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 190,
+          height: 240,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -165,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
             separatorBuilder: (_, __) => const SizedBox(width: 12),
             itemBuilder: (context, index) {
               return SizedBox(
-                width: 140,
+                width: 150,
                 child: ProductCard(product: category.products[index], isHorizontal: true),
               );
             },
@@ -189,11 +386,11 @@ class _HomeScreenState extends State<HomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Freshinbasket',
+              'FreshInBasket',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF164431),
+                color: Color(0xFF164431), // Use themed primary green
               ),
             ),
             const SizedBox(height: 2),
@@ -295,8 +492,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       if (slide.title.isNotEmpty)
                         Text(
                           slide.title,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: _parseHexColor(slide.textColor, Colors.white),
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
                           ),
@@ -305,8 +502,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 6),
                         Text(
                           slide.subtitle,
-                          style: const TextStyle(
-                              color: Colors.white70,
+                          style: TextStyle(
+                              color: _parseHexColor(slide.textColor, Colors.white70),
                               fontSize: 14,
                               height: 1.3),
                         ),
@@ -329,7 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 8,
                 decoration: BoxDecoration(
                   color: _currentSlide == i
-                      ? const Color(0xFF2D9350)
+                      ? const Color(0xFFF91C5F)
                       : const Color(0xFFD9D9D9),
                   borderRadius: BorderRadius.circular(4),
                 ),
@@ -372,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFFF7A6A),
+                color: const Color(0xFFF91C5F),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
@@ -438,7 +635,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Text(
               action,
               style:
-                  const TextStyle(fontSize: 14, color: Color(0xFF444444)),
+                  const TextStyle(fontSize: 14, color: Color(0xFFF91C5F), fontWeight: FontWeight.bold),
             ),
           ),
       ],
@@ -449,11 +646,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (categories.isEmpty) return const SizedBox.shrink();
 
     return SizedBox(
-      height: 100,
+      height: 88,
       child: ListView.separated(
+        padding: EdgeInsets.zero,
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 24),
+        separatorBuilder: (_, __) => const SizedBox(width: 20),
         itemBuilder: (context, index) {
           final cat = categories[index];
           return GestureDetector(
@@ -463,8 +661,8 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: [
                 Container(
-                  height: 64,
-                  width: 64,
+                  height: 52,
+                  width: 52,
                   decoration: BoxDecoration(
                     color: const Color(0xFFEBEBEB),
                     shape: BoxShape.circle,
@@ -480,14 +678,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         : null,
                   ),
                   child: cat.imageUrl == null
-                      ? const Icon(Icons.category, color: Color(0xFF666666))
+                      ? const Icon(Icons.category, color: Color(0xFF666666), size: 20)
                       : null,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   cat.name,
                   style:
-                      const TextStyle(fontSize: 13, color: Color(0xFF444444)),
+                      const TextStyle(fontSize: 11, color: Color(0xFF444444)),
                 ),
               ],
             ),
@@ -497,96 +695,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildWhatsNew() {
-    final updates = [
-      {
-        'icon': Icons.local_offer,
-        'title': 'Flash Sale',
-        'subtitle': 'Up to 50% off on seasonal fruits',
-        'color': const Color(0xFFFF7A6A),
-      },
-      {
-        'icon': Icons.new_releases,
-        'title': 'New Arrivals',
-        'subtitle': 'Fresh organic veggies just landed',
-        'color': const Color(0xFF2D9350),
-      },
-      {
-        'icon': Icons.delivery_dining,
-        'title': 'Free Delivery',
-        'subtitle': 'On orders above ₹100',
-        'color': const Color(0xFF164431),
-      },
-      {
-        'icon': Icons.card_giftcard,
-        'title': 'Refer & Earn',
-        'subtitle': 'Get ₹25 off on your next order',
-        'color': const Color(0xFFB14E3F),
-      },
-    ];
 
-    return SizedBox(
-      height: 110,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: updates.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final item = updates[index];
-          return Container(
-            width: 200,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: (item['color'] as Color).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: (item['color'] as Color).withValues(alpha: 0.2),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  height: 40,
-                  width: 40,
-                  decoration: BoxDecoration(
-                    color: item['color'] as Color,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(item['icon'] as IconData, color: Colors.white, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        item['title'] as String,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                          color: Color(0xFF222222),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item['subtitle'] as String,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF666666),
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+  Color _parseHexColor(String? hexString, Color fallback) {
+    if (hexString == null || hexString.isEmpty) return fallback;
+    try {
+      final hex = hexString.replaceAll('#', '');
+      if (hex.length == 6) {
+        return Color(int.parse('FF$hex', radix: 16));
+      } else if (hex.length == 8) {
+        return Color(int.parse(hex, radix: 16));
+      }
+    } catch (err) {
+      debugPrint('Error parsing color: $err');
+    }
+    return fallback;
   }
 }
