@@ -8,6 +8,7 @@ class AuthProvider extends ChangeNotifier {
   User? _user;
   bool _loading = false;
   String? _error;
+  String? _reqId;
 
   AuthProvider() {
     ApiService.onUnauthorized = logout;
@@ -85,7 +86,8 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      await AuthService.sendOtp(phoneNumber);
+      final res = await AuthService.sendOtp(phoneNumber);
+      _reqId = res['reqId'];
       _loading = false;
       notifyListeners();
       return true;
@@ -102,7 +104,8 @@ class AuthProvider extends ChangeNotifier {
     _error = null;
     notifyListeners();
     try {
-      final data = await AuthService.verifyOtp(phoneNumber, otpCode);
+      if (_reqId == null) throw Exception('Please send OTP first.');
+      final data = await AuthService.verifyOtp(phoneNumber, otpCode, _reqId!);
       if (data['user'] != null) {
         _user = User.fromJson(data['user']);
         // Register FCM token so backend can send push notifications to this device

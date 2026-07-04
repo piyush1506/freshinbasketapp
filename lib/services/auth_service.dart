@@ -66,11 +66,11 @@ class AuthService {
     throw Exception(_extractError(body) ?? 'Failed to send OTP');
   }
 
-  static Future<Map<String, dynamic>> verifyOtp(String phoneNumber, String otpCode) async {
+  static Future<Map<String, dynamic>> verifyOtp(String phoneNumber, String otpCode, String reqId) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/v1/auth/verify-otp/'),
       headers: {'Content-Type': 'application/json'},
-      body: json.encode({'phone_number': phoneNumber, 'otp_code': otpCode}),
+      body: json.encode({'phone_number': phoneNumber, 'otp_code': otpCode, 'reqId': reqId}),
     );
     if (res.statusCode == 200 || res.statusCode == 201) {
       final data = json.decode(res.body);
