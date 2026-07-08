@@ -112,6 +112,20 @@ class _ProductCardState extends State<ProductCard> {
                                 : '${ApiService.baseUrl}${widget.product.imageUrl}',
                             fit: BoxFit.cover,
                             width: double.infinity,
+                            placeholder: (context, url) => Container(
+                              color: const Color(0xFFF5F5F5),
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: const Color(0xFFF5F5F5),
+                              child: const Icon(Icons.image_not_supported, size: 36, color: Colors.grey),
+                            ),
                           )
                         : Container(
                             color: const Color(0xFFF5F5F5),
@@ -206,6 +220,14 @@ class _ProductCardState extends State<ProductCard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Name
+
+
+
+
+
+
+
+
                     Text(
                       widget.product.name,
                       style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 12, fontWeight: FontWeight.w600),

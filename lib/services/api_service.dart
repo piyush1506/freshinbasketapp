@@ -14,9 +14,10 @@ import '../models/review.dart';
 import '../models/wishlist_item.dart';
 import '../models/delivery_slot.dart';
 import '../models/contact_query.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.29.50:8000';
+  static String get baseUrl => dotenv.env['API_URL'] ?? 'https://freshinbasket.com';
 
   /// Sanitizes an exception message so internal network details (IPs, URLs)
   /// are never exposed to the user.

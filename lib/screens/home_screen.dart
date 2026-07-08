@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:freshinbasket/models/slide.dart';
+import '../models/product.dart';
 import '../models/category.dart';
 import '../services/api_service.dart';
 import '../providers/cart_provider.dart';
@@ -25,6 +27,19 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _slideTimer;
   String _activeSection = 'fresh';
   bool _isScrolled = false;
+  
+  int _generalVisibleRows = 3;
+  final Map<String, int> _categoryVisibleRows = {};
+  List<Product>? _shuffledProducts;
+
+  int _getCrossAxisCount(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 640) return 2;
+    if (width < 768) return 3;
+    if (width < 1024) return 4;
+    if (width < 1280) return 5;
+    return 6;
+  }
 
   @override
   void initState() {
@@ -83,9 +98,13 @@ class _HomeScreenState extends State<HomeScreen> {
           // Fresh Store Tab (Zepto style)
           GestureDetector(
             onTap: () {
-              setState(() {
-                _activeSection = 'fresh';
-              });
+              if (_activeSection != 'fresh') {
+                setState(() {
+                  _activeSection = 'fresh';
+                  _shuffledProducts = null;
+                  _generalVisibleRows = 3;
+                });
+              }
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -123,9 +142,13 @@ class _HomeScreenState extends State<HomeScreen> {
           // Organic Store Tab (Zepto style)
           GestureDetector(
             onTap: () {
-              setState(() {
-                _activeSection = 'organic';
-              });
+              if (_activeSection != 'organic') {
+                setState(() {
+                  _activeSection = 'organic';
+                  _shuffledProducts = null;
+                  _generalVisibleRows = 3;
+                });
+              }
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -260,6 +283,16 @@ class _HomeScreenState extends State<HomeScreen> {
           filteredCategories = categories;
         }
 
+        final int crossAxisCount = _getCrossAxisCount(context);
+        
+        if (_shuffledProducts == null) {
+          final allProducts = <Product>[];
+          for (var c in filteredCategories) {
+            allProducts.addAll(c.products);
+          }
+          _shuffledProducts = List.from(allProducts)..shuffle(math.Random(42));
+        }
+
         return Stack(
           children: [
             CustomScrollView(
@@ -269,7 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Sliver 1: Company Name Header & Section Tabs Switcher (Scrolls away / collapses)
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
                     child: Column(
                       children: [
                         _buildHeader(),
@@ -300,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Sliver 3: Hero slider
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: filteredSlides.isNotEmpty
                         ? _buildSlider(filteredSlides)
                         : _buildSeasonalBanner(),
@@ -309,8 +342,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
 
-                // Sliver 4: Products sections
-                ...filteredCategories.map((cat) => SliverToBoxAdapter(child: _buildCategorySection(cat))),
+                // Sliver 4: General Grid (Fresh Picks)
+                if (_shuffledProducts != null && _shuffledProducts!.isNotEmpty)
+                  ..._buildGeneralGridSlivers(_shuffledProducts!, crossAxisCount),
+
+                // Sliver 5: Category sections
+                ...filteredCategories.expand((cat) => _buildCategorySlivers(cat, crossAxisCount)),
 
                 const SliverToBoxAdapter(child: SizedBox(height: 24)),
               ],
@@ -341,36 +378,137 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategorySection(Category category) {
-    if (category.products.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
+  Iterable<Widget> _buildGeneralGridSlivers(List<Product> products, int crossAxisCount) {
+    if (products.isEmpty) return const [];
+    
+    final visibleCount = _generalVisibleRows * crossAxisCount;
+    final productsToShow = products.take(visibleCount).toList();
+    final hasMore = products.length > productsToShow.length;
+
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Fresh Picks',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF164431)),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Explore our fresh harvest',
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ),
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            mainAxisExtent: 250,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => ProductCard(product: productsToShow[index], isHorizontal: false),
+            childCount: productsToShow.length,
+          ),
+        ),
+      ),
+      if (hasMore)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _generalVisibleRows += 3;
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF164431),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                ),
+                child: const Text('See More', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
+        ),
+      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+      SliverToBoxAdapter(child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 20),
+        child: Divider(color: Colors.grey.shade200),
+      )),
+      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+    ];
+  }
+
+  Iterable<Widget> _buildCategorySlivers(Category category, int crossAxisCount) {
+    if (category.products.isEmpty) return const [];
+    
+    final visibleRows = _categoryVisibleRows[category.slug] ?? 2;
+    final visibleCount = visibleRows * crossAxisCount;
+    final productsToShow = category.products.take(visibleCount).toList();
+    final hasMore = category.products.length > productsToShow.length;
+
+    return [
+      SliverToBoxAdapter(
+        child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: _buildSectionHeader(category.name, 'View All', () {
             Navigator.pushNamed(context, '/category/${category.slug}');
           }),
         ),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 240,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            itemCount: category.products.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              return SizedBox(
-                width: 150,
-                child: ProductCard(product: category.products[index], isHorizontal: true),
-              );
-            },
+      ),
+      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            mainAxisExtent: 250,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => ProductCard(product: productsToShow[index], isHorizontal: false),
+            childCount: productsToShow.length,
           ),
         ),
-        const SizedBox(height: 24),
-      ],
-    );
+      ),
+      if (hasMore)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _categoryVisibleRows[category.slug] = visibleRows + 3;
+                  });
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF164431),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                ),
+                child: const Text('See More', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
+        ),
+      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+    ];
   }
 
   Widget _buildHeader() {
@@ -470,9 +608,8 @@ class _HomeScreenState extends State<HomeScreen> {
             itemBuilder: (context, index) {
               final slide = slides[index];
               return Container(
-                margin: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(16),
                   image: slide.imageUrl != null
                       ? DecorationImage(
                           image: CachedNetworkImageProvider(slide.imageUrl!),
@@ -482,7 +619,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   padding: const EdgeInsets.all(24),
                   child: Column(
@@ -541,7 +678,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       height: 240,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         image: const DecorationImage(
           image: NetworkImage(
               'https://images.unsplash.com/photo-1595855761054-94639908cf2c?auto=format&fit=crop&q=80&w=600'),
@@ -550,7 +687,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           gradient: LinearGradient(
             colors: [
               const Color(0xFF164431).withValues(alpha: 0.85),

@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class AuthService {
-  static const String baseUrl = 'http://192.168.29.50:8000';
+  static String get baseUrl => dotenv.env['API_URL'] ?? 'https://freshinbasket.com';
 
   static Future<Map<String, dynamic>> login(String email, String password) async {
     final res = await http.post(

@@ -29,7 +29,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
 
   String _formatDate(String dateStr) {
     try {
-      final parsed = DateTime.parse(dateStr);
+      final parsed = DateTime.parse(dateStr).toLocal();
       return DateFormat('MMM dd, yyyy • hh:mm a').format(parsed);
     } catch (_) {
       return dateStr;

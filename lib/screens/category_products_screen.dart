@@ -4,6 +4,8 @@ import '../services/api_service.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../widgets/product_card.dart';
+import 'package:provider/provider.dart';
+import '../providers/cart_provider.dart';
 
 class CategoryProductsScreen extends StatefulWidget {
   final String slug;
@@ -43,10 +45,39 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
         elevation: 0,
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.search, color: Color(0xFF222222)),
-            onPressed: () {
-              Navigator.pushNamed(context, 'search', arguments: '');
+          Consumer<CartProvider>(
+            builder: (context, cart, child) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.shopping_cart_outlined, color: Color(0xFF222222)),
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/cart');
+                    },
+                  ),
+                  if (cart.itemCount > 0)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE53935),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${cart.itemCount}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
             },
           ),
           const SizedBox(width: 8),

@@ -61,7 +61,7 @@ class _MyQueriesScreenState extends State<MyQueriesScreen> {
               String date = '';
               try {
                 date = DateFormat('MMM dd, yyyy')
-                    .format(DateTime.parse(q['created_at']));
+                    .format(DateTime.parse(q['created_at']).toLocal());
               } catch (_) {
                 date = q['created_at'] ?? '';
               }

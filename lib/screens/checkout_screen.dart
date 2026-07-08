@@ -210,7 +210,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       final cart = context.read<CartProvider>();
       if (cart.items.isNotEmpty) {
-        try { await ApiService.mergeCart(cart.items.map((i) => i.toJson()).toList()); } catch (_) {}
+        try { 
+          await ApiService.clearCart();
+          await ApiService.mergeCart(cart.items.map((i) => i.toJson()).toList()); 
+        } catch (_) {}
       }
       final fullAddress = _addressCtrl.text.trim();
       final latStr = _mapInteracted ? _currentCenter.latitude.toString() : null;
@@ -358,7 +361,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: SizedBox(
-                        height: 200,
+                        height: 280,
                         child: Stack(
                           children: [
                             FlutterMap(
@@ -578,7 +581,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             right: 0,
             bottom: 0,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+              padding: EdgeInsets.fromLTRB(16, 14, 16, 12 + MediaQuery.of(context).padding.bottom),
               decoration: BoxDecoration(
                 color: Colors.white,
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 20, offset: const Offset(0, -4))],
@@ -676,7 +679,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

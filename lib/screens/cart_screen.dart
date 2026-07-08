@@ -100,10 +100,14 @@ class CartScreen extends StatelessWidget {
                 color: Color(0xFFE8ECE9),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.shopping_cart_outlined,
-                size: 80,
-                color: Color(0xFF164431),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(40),
+                child: Image.asset(
+                  'images/appicon.jpg',
+                  width: 80,
+                  height: 80,
+                  fit: BoxFit.cover,
+                ),
               ),
             ),
             const SizedBox(height: 24),

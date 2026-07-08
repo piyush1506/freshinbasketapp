@@ -158,20 +158,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.12),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
-                              ),
-                              child: const Icon(
-                                Icons.shopping_cart_outlined,
-                                size: 48,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
+
                             const Text(
                               'FreshInBasket',
                               style: TextStyle(

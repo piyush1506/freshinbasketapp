@@ -351,7 +351,7 @@ class _OrderCard extends StatelessWidget {
 
   String get _formattedDate {
     try {
-      return DateFormat('MMM dd, yyyy • hh:mm a').format(DateTime.parse(order.createdAt));
+      return DateFormat('MMM dd, yyyy • hh:mm a').format(DateTime.parse(order.createdAt).toLocal());
     } catch (_) {
       return order.createdAt;
     }
@@ -486,13 +486,14 @@ class _OrderCard extends StatelessWidget {
                     final qtyStr = item.quantity.truncateToDouble() == item.quantity
                         ? item.quantity.toInt().toString()
                         : item.quantity.toString();
+                    final unitStr = item.unit != null && item.unit!.isNotEmpty ? ' ${item.unit}' : '';
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: const Color(0xFFF7F8F5),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('${item.name} x$qtyStr',
+                      child: Text('${item.name} x$qtyStr$unitStr',
                           style: const TextStyle(fontSize: 11, color: Color(0xFF444444))),
                     );
                   },
@@ -872,7 +873,7 @@ class _OrderDetailDialogState extends State<OrderDetailDialog> {
                       return ListTile(
                         dense: true,
                         title: Text(item.name),
-                        subtitle: Text('$qtyStr * ${item.unit ?? "kg"}'),
+                        subtitle: Text('$qtyStr ${item.unit ?? "kg"}'),
                         trailing: Text(
                           '₹${(item.price * item.quantity).toStringAsFixed(2)}',
                           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -1008,7 +1009,7 @@ class _OrderDetailDialogState extends State<OrderDetailDialog> {
 
   String _formattedDateString(String dateStr) {
     try {
-      return DateFormat('MMM dd, yyyy • hh:mm a').format(DateTime.parse(dateStr));
+      return DateFormat('MMM dd, yyyy • hh:mm a').format(DateTime.parse(dateStr).toLocal());
     } catch (_) {
       return dateStr;
     }

@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
 import '../widgets/product_card.dart';
+import '../widgets/voice_search_dialog.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 const String _indexKey = 'product_search_index';
 const int _resultLimit = 24;
@@ -214,7 +216,29 @@ class _SearchScreenState extends State<SearchScreen> {
                       });
                     },
                   )
-                : null,
+                : IconButton(
+                    icon: const Icon(Icons.mic_none_rounded, size: 20),
+                    onPressed: () async {
+                      final status = await Permission.microphone.request();
+                      if (status.isGranted && context.mounted) {
+                        final result = await showModalBottomSheet<String>(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (context) => const VoiceSearchDialog(),
+                        );
+                        if (result != null && result.isNotEmpty && mounted) {
+                          _ctrl.text = result;
+                          _onTextChanged();
+                          _focusNode.requestFocus();
+                        }
+                      } else if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Microphone permission required for voice search')),
+                        );
+                      }
+                    },
+                  ),
           ),
         ),
       ),
