@@ -124,7 +124,7 @@ class _HelpCenterScreenState extends State<HelpCenterScreen> {
                           try {
                             final email = user.email.trim().isNotEmpty
                                 ? user.email.trim()
-                                : '${user.username.trim().replaceAll(' ', '_')}@greenmart.com';
+                                : '${user.username.trim().replaceAll(' ', '_')}@freshinbasket.com';
                             await ApiService.submitContact(
                               name: user.username,
                               email: email,

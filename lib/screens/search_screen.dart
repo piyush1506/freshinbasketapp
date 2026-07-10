@@ -5,8 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
+import '../providers/cart_provider.dart';
 import '../widgets/product_card.dart';
 import '../widgets/voice_search_dialog.dart';
+import '../widgets/floating_cart_button.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 const String _indexKey = 'product_search_index';
@@ -117,8 +119,16 @@ class _SearchScreenState extends State<SearchScreen> {
       'id': p.id,
       'name': p.name,
       'price': p.price,
+      'mrp': p.mrp,
+      'stock': p.stock,
       'image_url': p.imageUrl,
       'unit': p.unit,
+      'tax_percentage': p.taxPercentage,
+      'discount_percentage': p.discountPercentage,
+      'order_step': p.orderStep,
+      'min_order_qty': p.minOrderQty,
+      'section_slug': p.sectionSlug,
+      'section_product_label': p.sectionProductLabel,
     }).toList();
     await prefs.setString(_indexKey, jsonEncode(json));
   }
@@ -242,6 +252,8 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
         ),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: const FloatingCartButton(),
       body: Stack(
         children: [
           _buildProductsGrid(),
@@ -282,7 +294,7 @@ class _SearchScreenState extends State<SearchScreen> {
         padding: const EdgeInsets.all(16),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          childAspectRatio: 0.68,
+          childAspectRatio: 0.78,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
         ),

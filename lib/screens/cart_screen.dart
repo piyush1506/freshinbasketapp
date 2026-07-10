@@ -308,34 +308,7 @@ class CartScreen extends StatelessWidget {
             const SizedBox(width: 16),
             Expanded(
               flex: 3,
-              child: ElevatedButton(
-                onPressed: () {
-                  final auth = context.read<AuthProvider>();
-                  if (!auth.isLoggedIn) {
-                    Navigator.pushNamed(context, '/auth');
-                    return;
-                  }
-                  Navigator.pushNamed(context, '/checkout');
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF164431),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  elevation: 0,
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Checkout',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                    ),
-                    SizedBox(width: 8),
-                    Icon(Icons.arrow_forward_rounded, size: 18),
-                  ],
-                ),
-              ),
+              child: _CheckoutButton(cart: cart),
             ),
           ],
         ),
@@ -349,8 +322,69 @@ class _CartItemCard extends StatelessWidget {
 
   const _CartItemCard({required this.item});
 
+  Widget _buildSkeleton() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      height: 96,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEEF0EC)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            width: 90,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.horizontal(left: Radius.circular(16)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(height: 14, width: 120, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(4))),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(height: 24, width: 80, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(12))),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Container(height: 14, width: 40, decoration: BoxDecoration(color: const Color(0xFFF5F5F5), borderRadius: BorderRadius.circular(4))),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (item.image == null) {
+      return _buildContent(context, null);
+    }
+    return CachedNetworkImage(
+      imageUrl: item.image.startsWith('http')
+          ? item.image
+          : '${ApiService.baseUrl}${item.image}',
+      imageBuilder: (context, imageProvider) => _buildContent(context, imageProvider),
+      placeholder: (context, url) => _buildSkeleton(),
+      errorWidget: (context, url, error) => _buildContent(context, null),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, ImageProvider? imageProvider) {
     final cart = context.read<CartProvider>();
     final isOrganic = item.name.toLowerCase().contains('organic');
 
@@ -382,21 +416,8 @@ class _CartItemCard extends StatelessWidget {
                     Positioned.fill(
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
-                        child: item.image != null
-                            ? CachedNetworkImage(
-                                imageUrl: item.image.startsWith('http')
-                                    ? item.image
-                                    : '${ApiService.baseUrl}${item.image}',
-                                fit: BoxFit.contain,
-                                placeholder: (context, url) => const Center(
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  ),
-                                ),
-                                errorWidget: (_, __, ___) => const Icon(Icons.image_not_supported_outlined, color: Colors.grey),
-                              )
+                        child: imageProvider != null
+                            ? Image(image: imageProvider, fit: BoxFit.contain)
                             : const Icon(Icons.image, color: Colors.grey),
                       ),
                     ),
@@ -561,6 +582,117 @@ class _CartItemCard extends StatelessWidget {
           child: Icon(icon, size: 16, color: const Color(0xFF164431)),
         ),
       ),
+    );
+  }
+}
+
+class _CheckoutButton extends StatefulWidget {
+  final CartProvider cart;
+  const _CheckoutButton({required this.cart});
+  @override
+  State<_CheckoutButton> createState() => _CheckoutButtonState();
+}
+
+class _CheckoutButtonState extends State<_CheckoutButton> {
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: _isLoading
+          ? null
+          : () async {
+              final auth = context.read<AuthProvider>();
+              if (!auth.isLoggedIn) {
+                Navigator.pushNamed(context, '/auth');
+                return;
+              }
+              setState(() => _isLoading = true);
+              try {
+                // 1. Explicitly validate stock for all items concurrently
+                final validations = await Future.wait(
+                  widget.cart.items.map((item) async {
+                    final product = await ApiService.fetchProduct(item.productId);
+                    return {'item': item, 'product': product};
+                  }),
+                );
+
+                for (var v in validations) {
+                  final item = v['item'] as dynamic; // CartItem
+                  final product = v['product'] as dynamic; // Product
+                  
+                  if (item.subProductId != null) {
+                    final sub = product.subproducts.firstWhere(
+                      (s) => s.id == item.subProductId,
+                      orElse: () => throw Exception('${item.name} is no longer available'),
+                    );
+                    if (item.quantity > sub.stock) {
+                      throw Exception('Only ${sub.stock} ${sub.unit ?? item.unit ?? ''} available for ${item.name}');
+                    }
+                  } else {
+                    if (item.quantity > product.stock) {
+                      throw Exception('Only ${product.stock} ${product.unit ?? item.unit ?? ''} available for ${item.name}');
+                    }
+                  }
+                }
+
+                // 2. Clear and merge cart
+                await ApiService.clearCart();
+                await ApiService.mergeCart(
+                    widget.cart.items.map((i) => i.toJson()).toList());
+                    
+                if (mounted) {
+                  Navigator.pushNamed(context, '/checkout');
+                }
+              } catch (e) {
+                if (mounted) {
+                  final msg = e
+                      .toString()
+                      .replaceFirst('Exception: ', '')
+                      .replaceFirst('error: ', '')
+                      .trim();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(msg),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                }
+              } finally {
+                if (mounted) {
+                  setState(() => _isLoading = false);
+                }
+              }
+            },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFF164431),
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: 0,
+      ),
+      child: _isLoading
+          ? const SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                  color: Colors.white, strokeWidth: 2))
+          : const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Checkout',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5),
+                ),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward_rounded, size: 18),
+              ],
+            ),
     );
   }
 }

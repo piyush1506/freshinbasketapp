@@ -133,7 +133,7 @@ class _ContactScreenState extends State<ContactScreen> {
               children: [
                 _contactRow(Icons.phone, '+91 9461877701'),
                 const SizedBox(height: 8),
-                _contactRow(Icons.email, 'support@greenmart.com'),
+                _contactRow(Icons.email, 'support@freshinbasket.com'),
                 const SizedBox(height: 8),
                 _contactRow(Icons.location_on, '123 Farm Street, India'),
               ],

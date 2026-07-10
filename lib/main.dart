@@ -16,6 +16,7 @@ import 'screens/edit_profile_screen.dart';
 import 'screens/contact_screen.dart';
 import 'screens/my_queries_screen.dart';
 import 'screens/wishlist_screen.dart';
+import 'screens/cart_screen.dart';
 import 'screens/checkout_screen.dart';
 import 'screens/help_center_screen.dart';
 import 'screens/order_success_screen.dart';
@@ -69,7 +70,7 @@ class FreshInBasketApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => WishlistProvider()..initAuthState()),
       ],
       child: MaterialApp(
-        title: 'GreenMart',
+        title: 'Freshinbasket',
         navigatorKey: navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
@@ -98,11 +99,16 @@ class FreshInBasketApp extends StatelessWidget {
           '/contact': (context) => const ContactScreen(),
           '/my-queries': (context) => const MyQueriesScreen(),
           '/wishlist': (context) => const WishlistScreen(),
+          '/cart': (context) => const CartScreen(),
           '/checkout': (context) => const CheckoutScreen(),
           '/help-center': (context) => const HelpCenterScreen(),
           '/order-success': (context) {
             final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-            return OrderSuccessScreen(orderType: args?['orderType'] ?? 'COD');
+            return OrderSuccessScreen(
+              orderType: args?['orderType'] ?? 'COD',
+              orderNumber: args?['orderNumber'] ?? '',
+              deliverySlot: args?['deliverySlot'] ?? '',
+            );
           },
           '/order-fail': (context) {
             final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;

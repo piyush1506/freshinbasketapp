@@ -88,25 +88,29 @@ class CartProvider extends ChangeNotifier {
   }
 
   Future<void> addToBackend(dynamic source, {double? quantity}) async {
-    if (!_isLoggedIn) {
-      addItem(source, quantity: quantity);
-      return;
-    }
     final productId = source is Product ? source.id : source.productId;
     final orderStep = source is Product ? source.orderStep : (source is CartItem ? source.orderStep : 1.0);
     final minOrderQty = source is Product ? source.minOrderQty : (source is CartItem ? source.minOrderQty : 0.0);
     final initialQty = quantity ?? (minOrderQty > 0 ? minOrderQty : orderStep);
 
-    try {
-      await ApiService.addToCart(productId, initialQty);
-    } catch (_) {
-      addItem(source, quantity: quantity);
+    // Optimistic UI update
+    addItem(source, quantity: initialQty);
+
+    if (!_isLoggedIn) {
       return;
     }
+
+    // Fire and forget backend sync
+    _syncAddToBackend(productId, initialQty);
+  }
+
+  Future<void> _syncAddToBackend(int productId, double quantity) async {
     try {
-      await _fetchFromBackend();
+      await ApiService.addToCart(productId, quantity);
+      await _fetchFromBackend(silent: true);
     } catch (_) {
-      addItem(source, quantity: quantity);
+      // Re-sync on failure
+      await _fetchFromBackend(silent: true);
     }
   }
 
@@ -114,25 +118,28 @@ class CartProvider extends ChangeNotifier {
 
   Future<void> updateQuantity(int productId, double quantity, {int? subProductId}) async {
     final key = subProductId != null ? 's_${productId}_$subProductId' : 'p_$productId';
-    if (_isLoggedIn) {
-      try {
-        if (quantity <= 0) {
-          await ApiService.removeFromCart(productId);
-        } else {
-          await ApiService.addToCart(productId, quantity);
-        }
-      } catch (_) {
-        _updateLocalQuantity(key, quantity);
-        return;
-      }
-      try {
-        await _fetchFromBackend();
-      } catch (_) {
-        _updateLocalQuantity(key, quantity);
-      }
-      return;
-    }
+    
+    // Optimistic UI update
     _updateLocalQuantity(key, quantity);
+
+    if (_isLoggedIn) {
+      // Fire and forget backend sync
+      _syncUpdateQuantity(productId, quantity);
+    }
+  }
+
+  Future<void> _syncUpdateQuantity(int productId, double quantity) async {
+    try {
+      if (quantity <= 0) {
+        await ApiService.removeFromCart(productId);
+      } else {
+        await ApiService.addToCart(productId, quantity);
+      }
+      await _fetchFromBackend(silent: true);
+    } catch (_) {
+      // Re-sync on failure
+      await _fetchFromBackend(silent: true);
+    }
   }
 
   void _updateLocalQuantity(String key, double quantity) {
@@ -152,21 +159,24 @@ class CartProvider extends ChangeNotifier {
 
   Future<void> removeFromBackend(int productId, {int? subProductId}) async {
     final key = subProductId != null ? 's_${productId}_$subProductId' : 'p_$productId';
-    if (_isLoggedIn) {
-      try {
-        await ApiService.removeFromCart(productId);
-      } catch (_) {
-        _removeLocal(key);
-        return;
-      }
-      try {
-        await _fetchFromBackend();
-      } catch (_) {
-        _removeLocal(key);
-      }
-      return;
-    }
+    
+    // Optimistic UI update
     _removeLocal(key);
+
+    if (_isLoggedIn) {
+      // Fire and forget backend sync
+      _syncRemoveFromBackend(productId);
+    }
+  }
+
+  Future<void> _syncRemoveFromBackend(int productId) async {
+    try {
+      await ApiService.removeFromCart(productId);
+      await _fetchFromBackend(silent: true);
+    } catch (_) {
+      // Re-sync on failure
+      await _fetchFromBackend(silent: true);
+    }
   }
 
   void _removeLocal(String key) {
@@ -227,14 +237,18 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _fetchFromBackend() async {
-    _loading = true;
-    notifyListeners();
+  Future<void> _fetchFromBackend({bool silent = false}) async {
+    if (!silent) {
+      _loading = true;
+      notifyListeners();
+    }
     try {
       _items = await ApiService.fetchCart();
       _clearGuestCart();
     } finally {
-      _loading = false;
+      if (!silent) {
+        _loading = false;
+      }
       notifyListeners();
     }
   }

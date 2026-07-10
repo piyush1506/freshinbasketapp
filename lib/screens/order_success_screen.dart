@@ -2,8 +2,15 @@ import 'package:flutter/material.dart';
 
 class OrderSuccessScreen extends StatefulWidget {
   final String orderType; // 'COD' or 'ONLINE'
+  final String orderNumber;
+  final String deliverySlot;
 
-  const OrderSuccessScreen({super.key, this.orderType = 'COD'});
+  const OrderSuccessScreen({
+    super.key, 
+    this.orderType = 'COD',
+    this.orderNumber = '',
+    this.deliverySlot = '',
+  });
 
   @override
   State<OrderSuccessScreen> createState() => _OrderSuccessScreenState();
@@ -99,7 +106,11 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                       ),
                       child: Column(
                         children: [
-                          _infoRow(Icons.local_shipping_rounded, 'Delivery', 'As per assigned slot'),
+                          _infoRow(
+                            Icons.local_shipping_rounded, 
+                            'Delivery', 
+                            widget.deliverySlot.isNotEmpty ? widget.deliverySlot : 'As per assigned slot'
+                          ),
                           const Divider(height: 24, color: Color(0xFFF0F0F0)),
                           _infoRow(
                             isOnline ? Icons.credit_card_rounded : Icons.money_rounded,
@@ -107,7 +118,11 @@ class _OrderSuccessScreenState extends State<OrderSuccessScreen>
                             isOnline ? 'Paid Online' : 'Cash on Delivery',
                           ),
                           const Divider(height: 24, color: Color(0xFFF0F0F0)),
-                          _infoRow(Icons.receipt_long_rounded, 'Status', 'Processing your order'),
+                          _infoRow(
+                            Icons.receipt_long_rounded, 
+                            'Order No.', 
+                            widget.orderNumber.isNotEmpty ? '#${widget.orderNumber}' : 'Processing...'
+                          ),
                         ],
                       ),
                     ),

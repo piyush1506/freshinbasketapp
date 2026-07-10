@@ -6,6 +6,7 @@ import '../models/category.dart';
 import '../widgets/product_card.dart';
 import 'package:provider/provider.dart';
 import '../providers/cart_provider.dart';
+import '../widgets/floating_cart_button.dart';
 
 class CategoryProductsScreen extends StatefulWidget {
   final String slug;
@@ -30,7 +31,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8F5),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: Text(
           _currentSlug.isNotEmpty
@@ -41,7 +42,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
             color: Color(0xFF222222),
           ),
         ),
-        backgroundColor: const Color(0xFFF7F8F5),
+        backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
         actions: [
@@ -83,6 +84,8 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
           const SizedBox(width: 8),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: const FloatingCartButton(),
       body: FutureBuilder<List<Category>>(
         future: _categoriesFuture,
         builder: (context, catListSnapshot) {
@@ -141,7 +144,7 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                             style: const TextStyle(fontSize: 13, color: Color(0xFF777777)),
                           ),
                         const SizedBox(height: 16),
-                        _buildAllCategoriesList(categories),
+                        _buildCategories(categories),
                         const SizedBox(height: 16),
                       ]),
                     ),
@@ -160,18 +163,18 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                     )
                   else
                     SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 10.0),
                       sliver: SliverGrid(
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                              childAspectRatio: 0.68,
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 10,
+                              mainAxisExtent: 210,
                             ),
                         delegate: SliverChildBuilderDelegate(
                           (context, index) =>
-                              ProductCard(product: products[index]),
+                              ProductCard(product: products[index], isHorizontal: false),
                           childCount: products.length,
                         ),
                       ),
@@ -187,7 +190,9 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
   }
 
 
-  Widget _buildAllCategoriesList(List<Category> categories) {
+  Widget _buildCategories(List<Category> categories) {
+    if (categories.isEmpty) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -196,16 +201,16 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF222222),
+            color: Color(0xFF164431),
           ),
         ),
         const SizedBox(height: 12),
         SizedBox(
-          height: 100,
+          height: 104,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
             itemBuilder: (context, index) {
               final cat = categories[index];
               final isSelected = cat.slug == _currentSlug;
@@ -215,77 +220,56 @@ class _CategoryProductsScreenState extends State<CategoryProductsScreen> {
                     _currentSlug = cat.slug;
                   });
                 },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 90,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 8,
-                    horizontal: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSelected ? const Color(0xFFE8ECE9) : Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFF164431)
-                          : const Color(0xFFEEF0EC),
-                      width: isSelected ? 1.8 : 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.015),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
-                      ),
-                    ],
-                  ),
+                child: SizedBox(
+                  width: 72,
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: SizedBox(
-                          width: 44,
-                          height: 44,
-                          child: cat.imageUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: cat.imageUrl!.startsWith('http')
-                                      ? cat.imageUrl!
-                                      : '${ApiService.baseUrl}${cat.imageUrl}',
+                      Container(
+                        height: 64,
+                        width: 64,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFE8ECE9)
+                              : const Color(0xFFF5F5F5),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF164431)
+                                : Colors.transparent,
+                            width: isSelected ? 2.0 : 0.0,
+                          ),
+                          image: cat.imageUrl != null
+                              ? DecorationImage(
+                                  image: CachedNetworkImageProvider(
+                                    cat.imageUrl!.startsWith('http')
+                                        ? cat.imageUrl!
+                                        : '${ApiService.baseUrl}${cat.imageUrl}',
+                                  ),
                                   fit: BoxFit.cover,
-                                  placeholder: (_, __) => const Center(
-                                    child: SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Color(0xFF164431),
-                                      ),
-                                    ),
-                                  ),
-                                  errorWidget: (_, __, ___) => const Icon(
-                                    Icons.image,
-                                    color: Colors.grey,
-                                  ),
                                 )
-                              : const Icon(Icons.image, color: Colors.grey),
+                              : null,
                         ),
+                        child: cat.imageUrl == null
+                            ? const Icon(Icons.category,
+                                color: Color(0xFF666666), size: 24)
+                            : null,
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
                         cat.name,
                         textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 11,
+                          height: 1.2,
                           fontWeight: isSelected
                               ? FontWeight.w700
-                              : FontWeight.w600,
+                              : FontWeight.w500,
                           color: isSelected
                               ? const Color(0xFF164431)
-                              : const Color(0xFF555555),
+                              : const Color(0xFF444444),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),

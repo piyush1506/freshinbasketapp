@@ -50,7 +50,7 @@ class CartItem {
           : (json['sub_product_id'] ?? json['sub_product']),
       name: product?['name'] ?? json['name'] ?? json['product_name'] ?? '',
       price: _toDouble(product?['price'] ?? json['price'] ?? json['unit_price']),
-      image: product?['image'] ?? json['image'] ?? json['image_url'],
+      image: product?['image'] ?? json['product_image_url'] ?? json['image'] ?? json['image_url'],
       unit: unitMap?['name'] ?? product?['unit'] ?? json['unit'] ?? json['unit_name'],
       quantity: _toDouble(json['quantity'], fallback: 1.0),
       taxPercentage: _toDouble(json['tax_percentage']),

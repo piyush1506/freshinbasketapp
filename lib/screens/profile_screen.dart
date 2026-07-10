@@ -92,7 +92,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.search, color: Color(0xFF222222)),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.pushNamed(context, '/search');
+            },
           ),
           const SizedBox(width: 8),
         ],
@@ -275,7 +277,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     // Settings List
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
@@ -284,7 +285,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               offset: const Offset(0, 4)),
                         ],
                       ),
-                      child: Column(
+                      child: Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        clipBehavior: Clip.antiAlias,
+                        child: Column(
                         children: [
                           _buildSettingItem(Icons.person_outline, 'Personal Information'),
                           const Divider(height: 1, indent: 56),
@@ -294,6 +299,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Divider(height: 1, indent: 56),
                           _buildSettingItem(Icons.help_outline, 'Help Center'),
                         ],
+                      ),
                       ),
                     ),
 
@@ -329,7 +335,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 24),
 
                     const Text(
-                      'GreenMart v2.4.0 • Made with Wholesomeness',
+                      'Freshinbasket v2.4.0 • Made with Wholesomeness',
                       style: TextStyle(color: Color(0xFFAAAAAA), fontSize: 12),
                     ),
                     const SizedBox(height: 16),

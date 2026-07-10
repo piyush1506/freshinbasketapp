@@ -1,9 +1,11 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import '../models/product.dart';
 import '../models/sub_product.dart';
+import '../models/category.dart';
 import '../models/cart_item.dart';
 import '../providers/cart_provider.dart';
 import '../providers/wishlist_provider.dart';
@@ -23,16 +25,19 @@ class ProductDetailScreen extends StatefulWidget {
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late Future<Product> _productFuture;
   late Future<List<Product>> _relatedFuture;
+  late Future<List<Category>> _categoriesFuture;
   double _quantity = 1.0;
   SubProduct? _selectedSub;
   bool _adding = false;
   bool _quantityInitialized = false;
+  bool _isDescExpanded = false;
 
   @override
   void initState() {
     super.initState();
     _productFuture = ApiService.fetchProduct(widget.productId);
     _relatedFuture = _fetchRelated();
+    _categoriesFuture = ApiService.fetchCategories();
   }
 
   Future<List<Product>> _fetchRelated() async {
@@ -43,7 +48,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       return all.where((p) {
         if (p.id == widget.productId) return false;
         return p.categoryNames.any((c) => catNames.contains(c));
-      }).take(8).toList();
+      }).toList();
     } catch (_) {
       return [];
     }
@@ -52,7 +57,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8F5),
+      backgroundColor: Colors.white,
       body: FutureBuilder<Product>(
         future: _productFuture,
         builder: (context, snapshot) {
@@ -87,7 +92,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
                 setState(() {
-                  _quantity = actualMin;
+                  _quantity = cartItem != null ? cartItem.quantity : actualMin;
                   _quantityInitialized = true;
                 });
               }
@@ -159,6 +164,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       },
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, bottom: 8, right: 12, left: 8),
+                    child: Consumer<CartProvider>(
+                      builder: (context, cart, _) {
+                        return CircleAvatar(
+                          backgroundColor: Colors.black26,
+                          child: IconButton(
+                            icon: Badge(
+                              isLabelVisible: cart.itemCount > 0,
+                              label: Text(cart.itemCount > 99 ? '99+' : '${cart.itemCount}'),
+                              child: const Icon(Icons.shopping_cart_outlined, color: Colors.white, size: 20),
+                            ),
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/cart');
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   stretchModes: const [StretchMode.zoomBackground],
@@ -174,11 +199,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             height: double.infinity,
                             memCacheWidth: 1080, // cache at device pixel width for sharpness
                             placeholder: (_, __) => Container(
-                              color: Colors.white,
-                              child: const Center(child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFF164431),
-                              )),
+                              color: const Color(0xFFF5F5F5),
                             ),
                             errorWidget: (_, __, ___) => Container(
                               color: Colors.grey.shade100,
@@ -317,7 +338,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             children: [
                               const Text('Description', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               const SizedBox(height: 10),
-                              Text(activeDesc, style: TextStyle(color: Colors.grey[700], height: 1.6, fontSize: 14)),
+                              Builder(
+                                builder: (context) {
+                                  final words = activeDesc.split(RegExp(r'\s+'));
+                                  final isLong = words.length > 100;
+                                  final displayDesc = (isLong && !_isDescExpanded) 
+                                      ? '${words.take(100).join(' ')}...' 
+                                      : activeDesc;
+                                      
+                                  return Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(displayDesc, style: TextStyle(color: Colors.grey[700], height: 1.6, fontSize: 14)),
+                                      if (isLong) ...[
+                                        const SizedBox(height: 8),
+                                        GestureDetector(
+                                          onTap: () => setState(() => _isDescExpanded = !_isDescExpanded),
+                                          child: Text(
+                                            _isDescExpanded ? 'See less' : 'See more',
+                                            style: const TextStyle(color: Color(0xFF164431), fontWeight: FontWeight.bold, fontSize: 14),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  );
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -339,18 +385,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               children: [
                                 const Text('Quantity', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                                 const Spacer(),
-                                _quantityControl(activeStep, actualMin),
-                                if (activeUnit != null && activeUnit.isNotEmpty) ...[
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    activeUnit,
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      color: Color(0xFF164431),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
+                                _quantityControl(activeStep, actualMin, activeUnit),
                               ],
                             ),
                             if (activeStep != 1.0) ...[
@@ -414,19 +449,71 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               children: [
                                 const Text('Related Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 12),
-                                SizedBox(
-                                  height: 240,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: snap.data!.length,
-                                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                                    itemBuilder: (context, index) {
-                                      return SizedBox(
-                                        width: 150,
-                                        child: ProductCard(product: snap.data![index], isHorizontal: true),
-                                      );
-                                    },
+                                GridView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 10,
+                                    crossAxisSpacing: 8,
+                                    mainAxisExtent: 210,
                                   ),
+                                  itemCount: snap.data!.length,
+                                  itemBuilder: (context, index) {
+                                    return ProductCard(product: snap.data![index], isHorizontal: false);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+
+                      // Random Products (40-50)
+                      FutureBuilder<List<Category>>(
+                        future: _categoriesFuture,
+                        builder: (context, catSnap) {
+                          if (!catSnap.hasData || catSnap.data!.isEmpty) return const SizedBox.shrink();
+                          
+                          // Extract all products from all categories
+                          final Map<int, Product> uniqueProducts = {};
+                          for (final cat in catSnap.data!) {
+                            for (final p in cat.products) {
+                              if (p.id != widget.productId) {
+                                uniqueProducts[p.id] = p;
+                              }
+                            }
+                          }
+                          
+                          if (uniqueProducts.isEmpty) return const SizedBox.shrink();
+
+                          final allProducts = uniqueProducts.values.toList();
+                          // Stable shuffle based on the current product ID so it doesn't reshuffle on setState
+                          allProducts.shuffle(Random(widget.productId));
+                          final displayProducts = allProducts.take(50).toList();
+
+                          return Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('More Products to Explore', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 12),
+                                GridView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    mainAxisSpacing: 10,
+                                    crossAxisSpacing: 8,
+                                    mainAxisExtent: 210,
+                                  ),
+                                  itemCount: displayProducts.length,
+                                  itemBuilder: (context, index) {
+                                    return ProductCard(product: displayProducts[index], isHorizontal: false);
+                                  },
                                 ),
                               ],
                             ),
@@ -563,7 +650,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return qty.toStringAsFixed(3).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
   }
 
-  Widget _quantityControl(double step, double minQty) {
+  Widget _quantityControl(double step, double minQty, String? unit) {
     final canDecrement = (_quantity - step) >= (minQty - 0.0001); // tolerance for float precision
     return Container(
       decoration: BoxDecoration(
@@ -596,7 +683,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             constraints: const BoxConstraints(minWidth: 44),
             alignment: Alignment.center,
             child: Text(
-              _formatQty(_quantity),
+              '${_formatQty(_quantity)}${unit != null && unit.isNotEmpty ? ' $unit' : ''}',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white),
             ),

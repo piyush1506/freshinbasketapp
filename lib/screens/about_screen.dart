@@ -23,7 +23,7 @@ class AboutScreen extends StatelessWidget {
                   Icon(Icons.shopping_cart,
                       size: 60, color: Color(0xFF164431)),
                   SizedBox(height: 12),
-                  Text('GreenMart',
+                  Text('Freshinbasket',
                       style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
@@ -39,7 +39,7 @@ class AboutScreen extends StatelessWidget {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           const Text(
-            'GreenMart brings the freshest vegetables and fruits directly from farms to your doorstep. '
+            'Freshinbasket brings the freshest vegetables and fruits directly from farms to your doorstep. '
             'We partner with local farmers to ensure you get the highest quality produce at the best prices.',
             style: TextStyle(color: Colors.grey, height: 1.6),
           ),

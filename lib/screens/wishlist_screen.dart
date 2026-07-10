@@ -124,8 +124,7 @@ class _WishlistScreenState extends State<WishlistScreen> {
                                           ? product.imageUrl!
                                           : '${ApiService.baseUrl}${product.imageUrl}',
                                       fit: BoxFit.cover,
-                                      placeholder: (_, __) => const Center(
-                                          child: CircularProgressIndicator(strokeWidth: 2)),
+                                      placeholder: (_, __) => Container(color: const Color(0xFFF5F5F5)),
                                       errorWidget: (_, __, ___) =>
                                           const Icon(Icons.image, color: Colors.grey),
                                     )
