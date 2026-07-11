@@ -76,7 +76,7 @@ class MainShellState extends State<MainShell> {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _currentTab != 2 
+      floatingActionButton: (_currentTab == 0 || _currentTab == 1)
           ? const FloatingCartButton() 
           : null,
       bottomNavigationBar: AnimatedContainer(
